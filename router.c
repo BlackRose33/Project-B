@@ -24,25 +24,25 @@ unsigned short in_cksum(unsigned short *ptr, int nbytes){
   return answer;
 }
 
-void create_raw_socket(char *ip, struct sockaddr_in routeraddr, socklen_t addrlen){
+int create_raw_socket(char *ip, struct sockaddr_in routeraddr, socklen_t addrlen){
   int raw_socket;
-  if ((raw_socket = socket(AF INET, SOCK RAW, IPPROTO ICMP)) < 0) {
+  if ((raw_socket = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP)) < 0) {
     perror("cannot create raw socket");
     exit(1);
   }
   memset(&routeraddr, 0, sizeof(routeraddr));
   routeraddr.sin_family = AF_INET;
   routeraddr.sin_port = htons(0);
-  routeraddr.sin_addr.s_addr = inet_aton(ip, &proxyaddr.sin_addr);
-  if (bind(routersocket, (struct sockaddr *)&routeraddr, sizeof(routeraddr)) < 0) {
+  routeraddr.sin_addr.s_addr = inet_aton(ip, &routeraddr.sin_addr);
+  if (bind(raw_socket, (struct sockaddr *)&routeraddr, sizeof(routeraddr)) < 0) {
     perror("bind failed");
     exit(1);
   } 
-  if (getsockname(routersocket, (struct sockaddr *)&routeraddr, &addrlen) < 0 ){
+  if (getsockname(raw_socket, (struct sockaddr *)&routeraddr, &addrlen) < 0 ){
     perror("getsockname failed");
     exit(1);
   }
-  
+  return raw_socket;
 }
 
 void create_udp_socket(){
@@ -55,7 +55,7 @@ void run_router(int cur_router, char* interface, char *ip){
   char buffer[BUFSIZE];
   socklen_t addrlen = sizeof(struct sockaddr_in);
 
-  raw_socket = create_raw_socket(ip, routeraddr, addrlen);
+  //raw_socket = create_raw_socket(ip, routeraddr, addrlen);
 
   if ((routersocket = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
     perror("cannot create udp socket");
