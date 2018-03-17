@@ -3,11 +3,11 @@ default: all
 CC=gcc
 CFLAGS=-Wall
 
-all: proja
+all: projb
 
-proja: router.c proxy.c router.h tunnel.c tunnel.h
-	$(CC) $(CFLAGS) tunnel.c router.c proxy.c -o proja
+projb: router.c proxy.c router.h tunnel.c tunnel.h
+	$(CC) $(CFLAGS) tunnel.c router.c proxy.c -o projb
 
 clean:
-	@echo "Cleaning for project A..."
-	@rm -f proja *.o *.out
+	@echo "Cleaning for project B..."
+	@rm -f projb *.o *.out

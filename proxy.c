@@ -33,7 +33,7 @@ void read_config_file(char* filename){
   fclose(config_file);
 }
 
-void create_proxy_socket(struct sockaddr_in proxyaddr, socklen_t addrlen){
+int create_proxy_socket(struct sockaddr_in proxyaddr, socklen_t addrlen){
   int proxysocket;
   if ((proxysocket = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
     perror("cannot create socket\n");
@@ -74,9 +74,9 @@ void create_and_listen(){
   fclose(output);
 
   pid_t pid;
-  for(int i = 0, i<NUM_ROUTERS; i++){
+  for(int i = 0; i<NUM_ROUTERS; i++){
     pid = fork();
-    char num, interface[4], ip[16];
+    char num, interface[5], ip[17];
     num = (i+1) + '0';
     sprintf(interface, "eth%c", num);
     sprintf(ip, "192.168.20%c.2", num);
