@@ -24,15 +24,42 @@ unsigned short in_cksum(unsigned short *ptr, int nbytes){
   return answer;
 }
 
-void run_router(){
+void create_raw_socket(char *ip, struct sockaddr_in routeraddr, socklen_t addrlen){
+  int raw_socket;
+  if ((raw_socket = socket(AF INET, SOCK RAW, IPPROTO ICMP)) < 0) {
+    perror("cannot create raw socket");
+    exit(1);
+  }
+  memset(&routeraddr, 0, sizeof(routeraddr));
+  routeraddr.sin_family = AF_INET;
+  routeraddr.sin_port = htons(0);
+  routeraddr.sin_addr.s_addr = inet_aton(ip, &proxyaddr.sin_addr);
+  if (bind(routersocket, (struct sockaddr *)&routeraddr, sizeof(routeraddr)) < 0) {
+    perror("bind failed");
+    exit(1);
+  } 
+  if (getsockname(routersocket, (struct sockaddr *)&routeraddr, &addrlen) < 0 ){
+    perror("getsockname failed");
+    exit(1);
+  }
+  
+}
+
+void create_udp_socket(){
+
+}
+
+void run_router(int cur_router, char* interface, char *ip){
   struct sockaddr_in routeraddr, proxyaddr;
-  int routersocket;
+  int routersocket, raw_socket;
   char buffer[BUFSIZE];
   socklen_t addrlen = sizeof(struct sockaddr_in);
 
+  raw_socket = create_raw_socket(ip, routeraddr, addrlen);
+
   if ((routersocket = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
-    perror("cannot create socket\n");
-    return;
+    perror("cannot create udp socket");
+    exit(1);
   }
 
   memset(&routeraddr, 0, sizeof(routeraddr));
@@ -42,34 +69,35 @@ void run_router(){
 
   if (bind(routersocket, (struct sockaddr *)&routeraddr, sizeof(routeraddr)) < 0) {
     perror("bind failed");
-    return;
+    exit(1);
   } 
   if (getsockname(routersocket, (struct sockaddr *)&routeraddr, &addrlen) < 0 ){
     perror("getsockname failed");
-    return;
+    exit(1);
   }
-  ROUTER_PORT_NUM = ntohs(routeraddr.sin_port);
+  int router_port_num = ntohs(routeraddr.sin_port);
 
   memset(&proxyaddr, 0, sizeof(proxyaddr));
   proxyaddr.sin_family = AF_INET;
   proxyaddr.sin_port = htons(PROXY_PORT_NUM);
   if (inet_aton("127.0.0.1", &proxyaddr.sin_addr)==0) {
-    fprintf(stderr, "inet_aton() failed\n");
+    perror("inet_aton() failed");
     exit(1);
   } 
 
   FILE *output;
-  char stage, filename[40];
+  char stage, router_num, filename[40];
   stage = STAGE + '0';
-  sprintf(filename, "stage%c.router1.out", stage);
+  router_num = cur_router + '0';
+  sprintf(filename, "stage%c.router%c.out", stage, router_num);
   output = fopen(filename, "w");
-  fprintf(output, "router: 1, pid: %d, port: %d\n", getpid(), ROUTER_PORT_NUM);
+  fprintf(output, "router: %d, pid: %d, port: %d\n", cur_router, getpid(), router_port_num);
   fclose(output);
 
   sprintf(buffer, "%d", getpid());
   if (sendto(routersocket, buffer, strlen(buffer), 0, (struct sockaddr *)&proxyaddr, addrlen)==-1) {
-    perror("sendto");
-    return;
+    perror("sendto failed");
+    exit(1);
   }
 
   fd_set readset;
@@ -80,7 +108,7 @@ void run_router(){
 
   do{
     if (select(max+1, &readset, NULL, NULL, NULL) == SO_ERROR){
-      perror("Select error!\n");
+      perror("Select error!");
       exit(1);
     }
     if FD_ISSET(routersocket, &readset){
@@ -110,8 +138,8 @@ void run_router(){
 	memcpy(buffer+sizeof(struct iphdr), icmp, sizeof(struct icmphdr));
 	buffer[sizeof(struct iphdr) + sizeof(struct icmphdr)] = 0;
   	if (sendto(routersocket, buffer, sizeof(buffer), 0, (struct sockaddr *)&proxyaddr, addrlen)==-1) {
-    	  perror("sendto");
-    	  return;
+    	  perror("sendto failed");
+    	  exit(1);
 	}
       }
     }
