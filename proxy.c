@@ -67,7 +67,7 @@ int create_proxy_socket(struct sockaddr_in proxyaddr, socklen_t addrlen){
  *
  */
 void create_and_listen(){
-  struct sockaddr_in proxyaddr, routeraddr;
+  struct sockaddr_in proxyaddr, routeraddr[NUM_ROUTERS];
   int proxysocket, recvlen;
   unsigned char buffer[BUFSIZE];
   socklen_t addrlen = sizeof(struct sockaddr_in);
@@ -91,23 +91,23 @@ void create_and_listen(){
     sprintf(ip, "192.168.20%c.2", num);
     if (pid == 0)
       run_router(i+1, interface, ip);
-    recvlen = recvfrom(proxysocket, buffer, BUFSIZE, 0, (struct sockaddr *)&routeraddr, &addrlen);
+    recvlen = recvfrom(proxysocket, buffer, BUFSIZE, 0, (struct sockaddr *)&routeraddr[i], &addrlen);
     if (recvlen > 0) {
       buffer[recvlen] = 0;
       output = fopen(filename, "a");
-      fprintf(output, "router: %d, pid: %s, port: %d\n", i+1, buffer, ntohs(routeraddr.sin_port));
+      fprintf(output, "router: %d, pid: %s, port: %d\n", i+1, buffer, ntohs(routeraddr[i].sin_port));
       fclose(output);
     }    
   }
 
   if (STAGE == 2){
     printf("On to stage 2\n");
-    tunnel_reader(filename, proxysocket, routeraddr, addrlen);
+    tunnel_reader(filename, proxysocket, routeraddr[0], addrlen);
   }
 
   if (STAGE == 3){
     printf("On to stage 3\n");
-    tunnel_reader(filename, proxysocket, routeraddr, addrlen);
+    tunnel_reader(filename, proxysocket, routeraddr[0], addrlen);
   }
 
   if (STAGE == 4){
