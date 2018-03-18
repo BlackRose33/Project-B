@@ -29,9 +29,21 @@ unsigned short in_cksum(unsigned short *ptr, int nbytes){
 
 int create_raw_socket(char* interface, char *ip, struct sockaddr_in routeraddr, socklen_t addrlen){
   int raw_socket;
+  struct ifreq ifr;
+  
   if ((raw_socket = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP)) < 0) {
     perror("cannot create raw socket");
     exit(1);
+  }
+
+  memset(&ifr, 0, sizeof(ifr));
+  snprintf(ifr.ifr_name, sizeof(ifr.ifr_name), interface);
+  if ((rc = setsockopt(raw_socket, SOL_SOCKET, SO_BINDTODEVICE, (void *)&ifr, sizeof(ifr))) < 0)
+  {
+      perror("Server-setsockopt() error for SO_BINDTODEVICE");
+      printf("%s\n", strerror(errno));
+      close(sd);
+      exit(-1);
   }
 
   memset(&routeraddr, 0, sizeof(routeraddr));
@@ -152,5 +164,6 @@ void run_router(int cur_router, char* interface, char *ip){
     }
   } while(1);
 
+  close(raw_socket);
   close(routersocket);
 }
