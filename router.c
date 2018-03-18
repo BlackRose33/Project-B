@@ -5,6 +5,9 @@
 
 int router_port_num;
 
+/*
+ *
+ */
 unsigned short in_cksum(unsigned short *ptr, int nbytes){
   register long sum;
   u_short oddbyte;
@@ -27,9 +30,15 @@ unsigned short in_cksum(unsigned short *ptr, int nbytes){
   return answer;
 }
 
-int create_raw_socket(char* interface, char *ip, struct sockaddr_in routeraddr, socklen_t addrlen){
+/*
+ * Create the raw_socket, binding it to a specific network interface and the 
+ * ip of the interface. 
+ */
+int create_raw_socket(char* interface, char *ip){
   int raw_socket, rc;
   struct ifreq ifr;
+  struct sockaddr_in routeraddr;
+  socklen_t addrlen = sizeof(struct sockaddr_in);
   
   if ((raw_socket = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP)) < 0) {
     perror("cannot create raw socket");
@@ -41,9 +50,8 @@ int create_raw_socket(char* interface, char *ip, struct sockaddr_in routeraddr, 
   if ((rc = setsockopt(raw_socket, SOL_SOCKET, SO_BINDTODEVICE, (void *)&ifr, sizeof(ifr))) < 0)
   {
       perror("Server-setsockopt() error for SO_BINDTODEVICE");
-      printf("%s\n", strerror(errno));
       close(raw_socket);
-      exit(-1);
+      exit(1);
   }
 
   memset(&routeraddr, 0, sizeof(routeraddr));
@@ -51,19 +59,27 @@ int create_raw_socket(char* interface, char *ip, struct sockaddr_in routeraddr, 
   routeraddr.sin_port = htons(0);
   routeraddr.sin_addr.s_addr = inet_addr(ip);
   if (bind(raw_socket, (struct sockaddr *)&routeraddr, sizeof(routeraddr)) < 0) {
-    printf("%d",errno);
     perror("bind failed");
+    close(raw_socket);
     exit(1);
   } 
+
   if (getsockname(raw_socket, (struct sockaddr *)&routeraddr, &addrlen) < 0 ){
     perror("getsockname failed");
+    close(raw_socket);
     exit(1);
   }
   return raw_socket;
 }
 
-int create_udp_socket(struct sockaddr_in routeraddr, socklen_t addrlen){
+/*
+ * Create the udp socket
+ */
+int create_udp_socket(){
   int routersocket;
+  struct sockaddr_in routeraddr;
+  socklen_t addrlen = sizeof(struct sockaddr_in);
+
   if ((routersocket = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
     perror("cannot create udp socket");
     exit(1);
@@ -76,10 +92,12 @@ int create_udp_socket(struct sockaddr_in routeraddr, socklen_t addrlen){
 
   if (bind(routersocket, (struct sockaddr *)&routeraddr, sizeof(routeraddr)) < 0) {
     perror("bind failed");
+    close(routersocket);
     exit(1);
   } 
   if (getsockname(routersocket, (struct sockaddr *)&routeraddr, &addrlen) < 0 ){
     perror("getsockname failed");
+    close(routersocket);
     exit(1);
   }
   router_port_num = ntohs(routeraddr.sin_port);
@@ -87,23 +105,27 @@ int create_udp_socket(struct sockaddr_in routeraddr, socklen_t addrlen){
 }
 
 void run_router(int cur_router, char* interface, char *ip){
-  struct sockaddr_in routeraddr, proxyaddr;
+  struct sockaddr_in proxyaddr;
   int routersocket, raw_socket;
   char buffer[BUFSIZE];
   socklen_t addrlen = sizeof(struct sockaddr_in);
 
-  raw_socket = create_raw_socket(interface, ip, routeraddr, addrlen);
+  // Create sockets
+  raw_socket = create_raw_socket(interface, ip);
+  routersocket = create_udp_socket();
 
-  routersocket = create_udp_socket(routeraddr, addrlen);
-
+  // Proxy information
   memset(&proxyaddr, 0, sizeof(proxyaddr));
   proxyaddr.sin_family = AF_INET;
   proxyaddr.sin_port = htons(PROXY_PORT_NUM);
   if (inet_aton("127.0.0.1", &proxyaddr.sin_addr)==0) {
     perror("inet_aton() failed");
+    close(routersocket);
+    close(raw_socket);
     exit(1);
   } 
 
+  // Initial setup of router output file
   FILE *output;
   char stage, router_num, filename[40];
   stage = STAGE + '0';
@@ -113,55 +135,69 @@ void run_router(int cur_router, char* interface, char *ip){
   fprintf(output, "router: %d, pid: %d, port: %d\n", cur_router, getpid(), router_port_num);
   fclose(output);
 
+  // Send pid to proxy (I'm alive msg)
   sprintf(buffer, "%d", getpid());
   if (sendto(routersocket, buffer, strlen(buffer), 0, (struct sockaddr *)&proxyaddr, addrlen)==-1) {
     perror("sendto failed");
+    close(routersocket);
+    close(raw_socket);
     exit(1);
   }
 
+  // Setup for select loop
   fd_set readset;
-  int max = routersocket;
+  int max;
+  if (routersocket > raw_socket)
+     max = routersocket;
+  else
+     max = raw_socket;
 
   FD_ZERO(&readset);
   FD_SET(routersocket, &readset);
   FD_SET(raw_socket, &readset);
 
+  // Select loop for listening and responding
   do{
     if (select(max+1, &readset, NULL, NULL, NULL) == SO_ERROR){
       perror("Select error!");
+      close(routersocket);
+      close(raw_socket);
       exit(1);
     }
     if FD_ISSET(routersocket, &readset){
       int len = recvfrom(routersocket, buffer,BUFSIZE, 0, (struct sockaddr *)&proxyaddr,&addrlen);
       if (len > 0){
-	buffer[len] = 0;
+	      buffer[len] = 0;
         struct iphdr *ip = (struct iphdr*)buffer;
-	char buffer1[1000];
+	      char buffer1[1000];
        
-	memcpy(buffer1, buffer+sizeof(struct iphdr), sizeof(struct icmphdr));
-	struct icmphdr *icmp = (struct icmphdr*) buffer1;
+      	memcpy(buffer1, buffer+sizeof(struct iphdr), sizeof(struct icmphdr));
+      	struct icmphdr *icmp = (struct icmphdr*) buffer1;
 
         output = fopen(filename, "a");
-	fprintf(output,"ICMP from port:%d, src:%u.%u.%u.%u, dst:%u.%u.%u.%u, type:%d\n",PROXY_PORT_NUM, ip->saddr &0xff, ip->saddr>>8 &0xff, ip->saddr>>16 &0xff,ip->saddr>>24 &0xff, ip->daddr &0xff, ip->daddr>>8 &0xff, ip->daddr>>16 &0xff,ip->daddr >> 24 &0xff, icmp->type);
-	fclose(output);
-        
-	__u32 addr = ip->daddr;
-	ip->daddr = ip->saddr;
-	ip->saddr = addr;
+      	fprintf(output,"ICMP from port:%d, src:%u.%u.%u.%u, dst:%u.%u.%u.%u, type:%d\n",PROXY_PORT_NUM, ip->saddr &0xff, ip->saddr>>8 &0xff, ip->saddr>>16 &0xff,ip->saddr>>24 &0xff, ip->daddr &0xff, ip->daddr>>8 &0xff, ip->daddr>>16 &0xff,ip->daddr >> 24 &0xff, icmp->type);
+      	fclose(output);
+              
+      	__u32 addr = ip->daddr;
+      	ip->daddr = ip->saddr;
+      	ip->saddr = addr;
 
-	//ip->ckeck = in_cksum((unsigned short *)ip, sizeof(struct iphdr));
+      	//ip->ckeck = in_cksum((unsigned short *)ip, sizeof(struct iphdr));
 
-	icmp->type = ICMP_ECHOREPLY;
-	icmp->checksum = in_cksum((unsigned short *)icmp, sizeof(struct icmphdr));
+      	icmp->type = ICMP_ECHOREPLY;
+      	icmp->checksum = in_cksum((unsigned short *)icmp, sizeof(struct icmphdr));
 
-	memcpy(buffer, ip, sizeof(struct iphdr));
-	memcpy(buffer+sizeof(struct iphdr), icmp, sizeof(struct icmphdr));
-	buffer[sizeof(struct iphdr) + sizeof(struct icmphdr)] = 0;
-  	if (sendto(routersocket, buffer, sizeof(buffer), 0, (struct sockaddr *)&proxyaddr, addrlen)==-1) {
-    	  perror("sendto failed");
-    	  exit(1);
-	}
+      	memcpy(buffer, ip, sizeof(struct iphdr));
+      	memcpy(buffer+sizeof(struct iphdr), icmp, sizeof(struct icmphdr));
+      	buffer[sizeof(struct iphdr) + sizeof(struct icmphdr)] = 0;
+        	if (sendto(routersocket, buffer, sizeof(buffer), 0, (struct sockaddr *)&proxyaddr, addrlen)==-1) {
+          	  perror("sendto failed");
+          	  exit(1);
+      	}
       }
+    }
+    if FD_ISSET(raw_socket, &readset){
+      printf("here raw_socket\n");
     }
   } while(1);
 

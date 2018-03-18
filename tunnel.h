@@ -13,6 +13,9 @@
 #include <fcntl.h>
 #include <unistd.h>
 
+/*
+ *
+ */
 int tunnel_reader(char *filename, int proxysocket, struct sockaddr_in routeraddr, socklen_t addrlen);
 
 #endif

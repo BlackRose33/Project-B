@@ -1,6 +1,9 @@
 #include "router.h"
 #include "tunnel.h"
 
+/*
+ *
+ */
 void read_config_file(char* filename){
   char *line = NULL;
   size_t len = 0;
@@ -33,6 +36,9 @@ void read_config_file(char* filename){
   fclose(config_file);
 }
 
+/*
+ *
+ */
 int create_proxy_socket(struct sockaddr_in proxyaddr, socklen_t addrlen){
   int proxysocket;
   if ((proxysocket = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
@@ -57,6 +63,9 @@ int create_proxy_socket(struct sockaddr_in proxyaddr, socklen_t addrlen){
   return proxysocket;
 }
 
+/*
+ *
+ */
 void create_and_listen(){
   struct sockaddr_in proxyaddr, routeraddr;
   int proxysocket, recvlen;
@@ -98,6 +107,7 @@ void create_and_listen(){
 
   if (STAGE == 3){
     printf("On to stage 3\n");
+    tunnel_reader(filename, proxysocket, routeraddr, addrlen);
   }
 
   if (STAGE == 4){

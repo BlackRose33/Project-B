@@ -18,6 +18,9 @@ int PROXY_PORT_NUM;
 
 #define BUFSIZE 2048
 
-void run_router();
+/*
+ * Starter function thats creates relevant sockets and starts the select loop.
+ */
+void run_router(int cur_router, char* interface, char *ip);
 
 #endif

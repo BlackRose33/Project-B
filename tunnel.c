@@ -117,21 +117,21 @@ int tunnel_reader(char *filename, int proxysocket, struct sockaddr_in routeraddr
         close(tun_fd);
         exit(1);
       } else {
-	buffer[nread] = 0;
-	struct iphdr *ip = (struct iphdr*)buffer;
-	char buffer1[sizeof(struct icmphdr)+1];
-	memcpy(buffer1, buffer+sizeof(struct iphdr), sizeof(struct icmphdr));
-	struct icmphdr *icmp = (struct icmphdr*)buffer1;
-	if (ip->protocol == 1){
-	  if (sendto(proxysocket, buffer, sizeof(buffer),0,(struct sockaddr *)&routeraddr, addrlen)==-1){
-	    perror("sendto in tunnel.c\n");
-	    exit(1);
-	  }
-	  
-	  FILE *output = fopen(filename, "a");
-	  fprintf(output, "ICMP packet from tunnel, src:%u.%u.%u.%u, dst:%u.%u.%u.%u, type:%d\n",ip->saddr &0xff, ip->saddr>>8 &0xff, ip->saddr>>16 &0xff,ip->saddr>>24 &0xff, ip->daddr &0xff, ip->daddr>>8 &0xff, ip->daddr>>16 &0xff,ip->daddr >> 24 &0xff, icmp->type);
-	  fclose(output);
-	}
+        buffer[nread] = 0;
+        struct iphdr *ip = (struct iphdr*)buffer;
+        char buffer1[sizeof(struct icmphdr)+1];
+        memcpy(buffer1, buffer+sizeof(struct iphdr), sizeof(struct icmphdr));
+        struct icmphdr *icmp = (struct icmphdr*)buffer1;
+        if (ip->protocol == 1){
+          if (sendto(proxysocket, buffer, sizeof(buffer),0,(struct sockaddr *)&routeraddr, addrlen)==-1){
+            perror("sendto in tunnel.c\n");
+            exit(1);
+          }
+          
+          FILE *output = fopen(filename, "a");
+          fprintf(output, "ICMP packet from tunnel, src:%u.%u.%u.%u, dst:%u.%u.%u.%u, type:%d\n",ip->saddr &0xff, ip->saddr>>8 &0xff, ip->saddr>>16 &0xff,ip->saddr>>24 &0xff, ip->daddr &0xff, ip->daddr>>8 &0xff, ip->daddr>>16 &0xff,ip->daddr >> 24 &0xff, icmp->type);
+          fclose(output);
+        }
       }
     }
     if FD_ISSET(proxysocket, &tempset){
@@ -148,8 +148,8 @@ int tunnel_reader(char *filename, int proxysocket, struct sockaddr_in routeraddr
         fprintf(output,"ICMP from port:%d, src:%u.%u.%u.%u, dst:%u.%u.%u.%u, type:%d\n",ntohs(routeraddr.sin_port), ip->saddr &0xff, ip->saddr>>8 &0xff, ip->saddr>>16 &0xff,ip->saddr>>24 &0xff, ip->daddr &0xff, ip->daddr>>8 &0xff, ip->daddr>>16 &0xff,ip->daddr >> 24 &0xff, icmp->type);
         fclose(output);
 
-	if(write(tun_fd, buffer, sizeof(struct iphdr)+sizeof(struct icmphdr))<0){
-	  perror("write failed");
+      	if(write(tun_fd, buffer, sizeof(struct iphdr)+sizeof(struct icmphdr))<0){
+      	  perror("write failed");
         }
       }
     }
