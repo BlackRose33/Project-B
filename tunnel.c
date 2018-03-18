@@ -75,7 +75,7 @@ int tun_alloc(char *dev, int flags)
 }
 
 
-int tunnel_reader(char *filename, int proxysocket, struct sockaddr_in routeraddr, socklen_t addrlen)
+int tunnel_reader(char *filename, int proxysocket, struct sockaddr_in routeraddr[], socklen_t addrlen)
 {
   char tun_name[IFNAMSIZ];
   char buffer[1000];

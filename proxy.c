@@ -100,18 +100,8 @@ void create_and_listen(){
     }    
   }
 
-  if (STAGE == 2){
-    printf("On to stage 2\n");
-    tunnel_reader(filename, proxysocket, routeraddr[0], addrlen);
-  }
-
-  if (STAGE == 3){
-    printf("On to stage 3\n");
-    tunnel_reader(filename, proxysocket, routeraddr[0], addrlen);
-  }
-
-  if (STAGE == 4){
-    printf("On to stage 4\n");
+  if (STAGE > 1 && STAGE <5){
+    tunnel_reader(filename, proxysocket, routeraddr, addrlen);
   }
 
   if (STAGE == 5){

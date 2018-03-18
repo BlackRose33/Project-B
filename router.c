@@ -61,20 +61,20 @@ void display(void *buf, int bytes)
   fprintf(stderr, "----------------\n");
   for ( i = 0; i < bytes; i++ )
   {
-    if ( !(i & 15) ) fprintf(stderr, "\nX:  ", i);
-    fprintf(stderr, "X ", ((unsigned char*)buf)[i]);
+    if ( !(i & 15) ) fprintf(stderr, "\n%X:  ", i);
+    fprintf(stderr, "%X ", ((unsigned char*)buf)[i]);
   }
   fprintf(stderr,"\n");
+  struct in_addr s, d;
+  s.s_addr = ip->saddr;
+  d.s_addr = ip->daddr;
   fprintf(stderr,"IPv%d: hdr-size=%d pkt-size=%d protocol=%d TTL=%d src=%s ",
     ip->version, ip->ihl*4, ntohs(ip->tot_len), ip->protocol,
-    ip->ttl, inet_ntoa(ip->saddr));
-  fprintf(stderr,"dst=%s\n", inet_ntoa(ip->daddr));
-  if ( icmp->un.echo.id == pid )
-  {
-    fprintf(stderr,"ICMP: type[%d/%d] checksum[%d] id[%d] seq[%d] calcr[%d] calct[%d]\n",
+    ip->ttl, inet_ntoa(s));
+  fprintf(stderr,"dst=%s\n", inet_ntoa(d));
+    fprintf(stderr,"ICMP: type[%d/%d] checksum[%d] id[%d] seq[%d]\n",
       icmp->type, icmp->code, ntohs(icmp->checksum),
-      icmp->un.echo.id, icmp->un.echo.sequence), checksum((uint16_t *)icmp, sizeof(&icmp)), cksum((void *)icmp, sizeof(&icmp));
-  }
+      icmp->un.echo.id, icmp->un.echo.sequence);
 }
 
 
@@ -214,6 +214,7 @@ void run_router(int cur_router, char* interface, char* router_ip){
       exit(1);
     }
     if FD_ISSET(routersocket, &readset){
+	    bzero(buffer, BUFSIZE);
       int len = recvfrom(routersocket, buffer,BUFSIZE, 0, (struct sockaddr *)&proxyaddr,&addrlen);
       if (len > 0){
 	buffer[len] = 0;
@@ -232,13 +233,14 @@ void run_router(int cur_router, char* interface, char* router_ip){
       }
         output = fopen(filename, "a");
       	fprintf(output,"ICMP from port:%d, src:%u.%u.%u.%u, dst:%u.%u.%u.%u, type:%d\n",PROXY_PORT_NUM, ip->saddr &0xff, ip->saddr>>8 &0xff, ip->saddr>>16 &0xff,ip->saddr>>24 &0xff, ip->daddr &0xff, ip->daddr>>8 &0xff, ip->daddr>>16 &0xff,ip->daddr >> 24 &0xff, icmp->type);
-      	fprintf(stderr, "icmphdr size: %ld, len: %d, cksm: %d calculated: %d\n", sizeof(&icmp), len, icmp->checksum, checksum((uint16_t *) icmp, sizeof(&icmp)));
+      	fprintf(stderr, "icmphdr size: %ld, len: %d, cksm: %d calculated: %d\n", sizeof(&icmp), len, ntohs(icmp->checksum), checksum((uint16_t *) buffer1, sizeof(struct icmphdr)+56));
 	fclose(output);
 
         
 	if (!((inet_addr("10.5.51.2") & inet_addr("255.255.255.0")) == (ip->daddr & inet_addr("255.255.255.0")))) {
           const size_t icmp_size = sizeof(buffer1);
       	  struct iovec iov;
+	  icmp->checksum = checksum((uint16_t *)buffer1, 8);
           iov.iov_base=icmp;
           iov.iov_len=icmp_size;
       	  struct sockaddr_in daddr;
@@ -246,7 +248,6 @@ void run_router(int cur_router, char* interface, char* router_ip){
       	  daddr.sin_port = htons(raw_socket_port_num);
       	  daddr.sin_addr.s_addr = (uint32_t)ip->daddr;
       	
-      	  fprintf(stderr, "iov size: %ld, len: %d, cksm: %d\n", sizeof(iov), sizeof(buffer1), icmp->checksum);
 
           struct msghdr message;
           message.msg_name=(struct sockaddr *)&daddr;
@@ -260,6 +261,9 @@ void run_router(int cur_router, char* interface, char* router_ip){
             perror("sendto outside world failed");
             exit(1);
           }
+        output = fopen(filename, "a");
+      	fprintf(output,"ICMP from raw sock, src:%u.%u.%u.%u, dst:%s, type:0\n",ip->daddr &0xff, ip->daddr>>8 &0xff, ip->daddr>>16 &0xff,ip->daddr >> 24 &0xff, router_ip);
+	fclose(output);
         }   
       	
         __u32 addr = ip->saddr;
@@ -301,23 +305,12 @@ void run_router(int cur_router, char* interface, char* router_ip){
       }
 
       output = fopen(filename, "a");
-      fprintf(output,"ICMP msgtype=%d", icmp->type);
-      int n=recvfrom(raw_socket,buffer,BUFSIZE,0,(struct sockaddr *)&proxyaddr,&addrlen);
-      fprintf(output," rec'd %d bytes\n",n);
+      	fprintf(output,"ICMP from raw_socket, src:%s, dst:%s, type:%d\n",inet_ntoa(src.sin_addr), router_ip, icmp->type);
+	fclose(output);
+     /* int n=recvfrom(raw_socket,buffer,BUFSIZE,0,(struct sockaddr *)&proxyaddr,&addrlen);
 
       struct iphdr *ip_hdr = (struct iphdr *)buffer;
-
-      fprintf(output,"IP header is %d bytes.\n", ip_hdr->ihl*4);
-
-          fprintf(output,"ICMP msgtype=%d", icmp->type);
-      for (int i = 0; i < n; i++) {
-        printf("%02X%s", (uint8_t)buffer[i], (i + 1)%16 ? " " : "\n");
-      }
-      printf("\n");
-
-      struct icmphdr *icmp_hdr = (struct icmphdr *)((char *)ip_hdr + (4 * ip_hdr->ihl));
-
-      printf("ICMP msgtype=%d, code=%d", icmp_hdr->type, icmp_hdr->code);
+      struct icmphdr *icmp_hdr = (struct icmphdr *)((char *)ip_hdr + (4 * ip_hdr->ihl));*/
     }
   } while(1);
 
