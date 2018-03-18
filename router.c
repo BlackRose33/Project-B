@@ -30,24 +30,24 @@ unsigned short icmp_cksum(unsigned short *ptr, int nbytes){
   return answer;
 }
 
-unsigned short ip_cksum(struct ip *ip, int len){
-  long sum = 0;  /* assume 32 bit long, 16 bit short */
+/*unsigned short ip_cksum(struct ip *ip, int len){
+  long sum = 0;  // assume 32 bit long, 16 bit short 
 
   while(len > 1){
     sum += *((unsigned short*) ip)++;
-    if(sum & 0x80000000)   /* if high order bit set, fold */
+    if(sum & 0x80000000){   // if high order bit set, fold 
       sum = (sum & 0xFFFF) + (sum >> 16);
       len -= 2;
     }
 
-  if(len)       /* take care of left over byte */
+  if(len)       // take care of left over byte
     sum += (unsigned short) *(unsigned char *)ip;
 
   while(sum>>16)
     sum = (sum & 0xFFFF) + (sum >> 16);
 
   return ~sum;
-}
+}*/
 
 
 /*
@@ -189,7 +189,7 @@ void run_router(int cur_router, char* interface, char *ip){
       if (len > 0){
 	      buffer[len] = 0;
         struct iphdr *ip = (struct iphdr*)buffer;
-	      char buffer1[1000];
+	char buffer1[1000];
        
       	memcpy(buffer1, buffer+sizeof(struct iphdr), sizeof(struct icmphdr));
       	struct icmphdr *icmp = (struct icmphdr*) buffer1;
@@ -205,7 +205,7 @@ void run_router(int cur_router, char* interface, char *ip){
       	icmp->type = ICMP_ECHOREPLY;
       	icmp->checksum = icmp_cksum((unsigned short *)icmp, sizeof(struct icmphdr));
 
-        ip->ckeck = ip_cksum(ip, sizeof(struct iphdr));
+        ip->check = icmp_cksum((unsigned short *)ip, sizeof(struct iphdr));
 
       	memcpy(buffer, ip, sizeof(struct iphdr));
       	memcpy(buffer+sizeof(struct iphdr), icmp, sizeof(struct icmphdr));
@@ -218,15 +218,15 @@ void run_router(int cur_router, char* interface, char *ip){
     }
     if FD_ISSET(raw_socket, &readset){
       
-      n=recvfrom(raw_socket,buf,BUFSIZE,0,(struct sockaddr *)&outaddr,&addrlen);
+      int n=recvfrom(raw_socket,buffer,BUFSIZE,0,(struct sockaddr *)&proxyaddr,&addrlen);
       printf(" rec'd %d bytes\n",n);
 
-      struct iphdr *ip_hdr = (struct iphdr *)buf;
+      struct iphdr *ip_hdr = (struct iphdr *)buffer;
 
       printf("IP header is %d bytes.\n", ip_hdr->ihl*4);
 
-      for (i = 0; i < n; i++) {
-        printf("%02X%s", (uint8_t)buf[i], (i + 1)%16 ? " " : "\n");
+      for (int i = 0; i < n; i++) {
+        printf("%02X%s", (uint8_t)buffer[i], (i + 1)%16 ? " " : "\n");
       }
       printf("\n");
 
