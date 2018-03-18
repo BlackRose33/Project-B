@@ -1,6 +1,9 @@
 #include <linux/ip.h>
 #include <linux/icmp.h>
 #include "router.h"
+#include <errno.h>
+
+int router_port_num;
 
 unsigned short in_cksum(unsigned short *ptr, int nbytes){
   register long sum;
@@ -24,17 +27,19 @@ unsigned short in_cksum(unsigned short *ptr, int nbytes){
   return answer;
 }
 
-int create_raw_socket(char *ip, struct sockaddr_in routeraddr, socklen_t addrlen){
+int create_raw_socket(char* interface, char *ip, struct sockaddr_in routeraddr, socklen_t addrlen){
   int raw_socket;
   if ((raw_socket = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP)) < 0) {
     perror("cannot create raw socket");
     exit(1);
   }
+
   memset(&routeraddr, 0, sizeof(routeraddr));
   routeraddr.sin_family = AF_INET;
   routeraddr.sin_port = htons(0);
   routeraddr.sin_addr.s_addr = inet_aton(ip, &routeraddr.sin_addr);
   if (bind(raw_socket, (struct sockaddr *)&routeraddr, sizeof(routeraddr)) < 0) {
+    printf("%d",errno);
     perror("bind failed");
     exit(1);
   } 
@@ -45,18 +50,8 @@ int create_raw_socket(char *ip, struct sockaddr_in routeraddr, socklen_t addrlen
   return raw_socket;
 }
 
-void create_udp_socket(){
-
-}
-
-void run_router(int cur_router, char* interface, char *ip){
-  struct sockaddr_in routeraddr, proxyaddr;
-  int routersocket, raw_socket;
-  char buffer[BUFSIZE];
-  socklen_t addrlen = sizeof(struct sockaddr_in);
-
-  //raw_socket = create_raw_socket(ip, routeraddr, addrlen);
-
+int create_udp_socket(struct sockaddr_in routeraddr, socklen_t addrlen){
+  int routersocket;
   if ((routersocket = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
     perror("cannot create udp socket");
     exit(1);
@@ -75,7 +70,19 @@ void run_router(int cur_router, char* interface, char *ip){
     perror("getsockname failed");
     exit(1);
   }
-  int router_port_num = ntohs(routeraddr.sin_port);
+  router_port_num = ntohs(routeraddr.sin_port);
+  return routersocket;
+}
+
+void run_router(int cur_router, char* interface, char *ip){
+  struct sockaddr_in routeraddr, proxyaddr;
+  int routersocket, raw_socket;
+  char buffer[BUFSIZE];
+  socklen_t addrlen = sizeof(struct sockaddr_in);
+
+  raw_socket = create_raw_socket(interface, ip, routeraddr, addrlen);
+
+  routersocket = create_udp_socket(routeraddr, addrlen);
 
   memset(&proxyaddr, 0, sizeof(proxyaddr));
   proxyaddr.sin_family = AF_INET;
