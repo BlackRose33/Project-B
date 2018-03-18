@@ -28,7 +28,7 @@ unsigned short in_cksum(unsigned short *ptr, int nbytes){
 }
 
 int create_raw_socket(char* interface, char *ip, struct sockaddr_in routeraddr, socklen_t addrlen){
-  int raw_socket;
+  int raw_socket, rc;
   struct ifreq ifr;
   
   if ((raw_socket = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP)) < 0) {
@@ -42,14 +42,14 @@ int create_raw_socket(char* interface, char *ip, struct sockaddr_in routeraddr, 
   {
       perror("Server-setsockopt() error for SO_BINDTODEVICE");
       printf("%s\n", strerror(errno));
-      close(sd);
+      close(raw_socket);
       exit(-1);
   }
 
   memset(&routeraddr, 0, sizeof(routeraddr));
   routeraddr.sin_family = AF_INET;
   routeraddr.sin_port = htons(0);
-  routeraddr.sin_addr.s_addr = inet_aton(ip, &routeraddr.sin_addr);
+  routeraddr.sin_addr.s_addr = inet_addr(ip);
   if (bind(raw_socket, (struct sockaddr *)&routeraddr, sizeof(routeraddr)) < 0) {
     printf("%d",errno);
     perror("bind failed");
@@ -124,6 +124,7 @@ void run_router(int cur_router, char* interface, char *ip){
 
   FD_ZERO(&readset);
   FD_SET(routersocket, &readset);
+  FD_SET(raw_socket, &readset);
 
   do{
     if (select(max+1, &readset, NULL, NULL, NULL) == SO_ERROR){
