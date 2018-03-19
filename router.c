@@ -240,7 +240,7 @@ void run_router(int cur_router, char* interface, char* router_ip){
 	if (!((inet_addr("10.5.51.2") & inet_addr("255.255.255.0")) == (ip->daddr & inet_addr("255.255.255.0")))) {
           const size_t icmp_size = sizeof(buffer1);
       	  struct iovec iov;
-	  icmp->checksum = checksum((uint16_t *)buffer1, 8);
+	  //icmp->checksum = checksum((uint16_t *)buffer1, 8);
           iov.iov_base=icmp;
           iov.iov_len=icmp_size;
       	  struct sockaddr_in daddr;

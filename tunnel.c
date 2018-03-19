@@ -122,8 +122,10 @@ int tunnel_reader(char *filename, int proxysocket, struct sockaddr_in routeraddr
         char buffer1[sizeof(struct icmphdr)+1];
         memcpy(buffer1, buffer+sizeof(struct iphdr), sizeof(struct icmphdr));
         struct icmphdr *icmp = (struct icmphdr*)buffer1;
+        int router_num = 0;
+        int router_num = (ip->saddr % NUM_ROUTERS)+1;
         if (ip->protocol == 1){
-          if (sendto(proxysocket, buffer, sizeof(buffer),0,(struct sockaddr *)&routeraddr, addrlen)==-1){
+          if (sendto(proxysocket, buffer, sizeof(buffer),0,(struct sockaddr *)&routeraddr[router_num], addrlen)==-1){
             perror("sendto in tunnel.c\n");
             exit(1);
           }
@@ -135,7 +137,8 @@ int tunnel_reader(char *filename, int proxysocket, struct sockaddr_in routeraddr
       }
     }
     if FD_ISSET(proxysocket, &tempset){
-      int len = recvfrom(proxysocket, buffer,1000, 0, (struct sockaddr *)&routeraddr,&addrlen);
+      struct sockaddr_in theiraddr;
+      int len = recvfrom(proxysocket, buffer,1000, 0, (struct sockaddr *)&theiraddr,&addrlen);
       if (len > 0){
         buffer[len] = 0;
         struct iphdr *ip = (struct iphdr*)buffer;
@@ -145,7 +148,7 @@ int tunnel_reader(char *filename, int proxysocket, struct sockaddr_in routeraddr
         struct icmphdr *icmp = (struct icmphdr*) buffer1;
 
         FILE *output = fopen(filename, "a");
-        fprintf(output,"ICMP from port:%d, src:%u.%u.%u.%u, dst:%u.%u.%u.%u, type:%d\n",ntohs(routeraddr.sin_port), ip->saddr &0xff, ip->saddr>>8 &0xff, ip->saddr>>16 &0xff,ip->saddr>>24 &0xff, ip->daddr &0xff, ip->daddr>>8 &0xff, ip->daddr>>16 &0xff,ip->daddr >> 24 &0xff, icmp->type);
+        fprintf(output,"ICMP from port:%d, src:%u.%u.%u.%u, dst:%u.%u.%u.%u, type:%d\n",ntohs(theiraddr.sin_port), ip->saddr &0xff, ip->saddr>>8 &0xff, ip->saddr>>16 &0xff,ip->saddr>>24 &0xff, ip->daddr &0xff, ip->daddr>>8 &0xff, ip->daddr>>16 &0xff,ip->daddr >> 24 &0xff, icmp->type);
         fclose(output);
 
       	if(write(tun_fd, buffer, sizeof(struct iphdr)+sizeof(struct icmphdr))<0){
