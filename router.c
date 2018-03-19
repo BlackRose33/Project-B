@@ -6,29 +6,36 @@
 int router_port_num;
 int raw_socket_port_num;
 
-/*
- *
- */
-unsigned short cksum(unsigned short *ptr, int nbytes){
-  register long sum;
-  u_short oddbyte;
-  register u_short answer;
+// Computing the internet checksum (RFC 1071).
+// Note that the internet checksum does not preclude collisions.
+uint16_t checksum (uint16_t *addr, int len)
+{
+  int count = len;
+  register uint32_t sum = 0;
+  uint16_t answer = 0;
 
-  sum = 0;
-  while(nbytes>1){
-    sum += *ptr++;
-    nbytes -= 2;
+  // Sum up 2-byte values until none or only one byte left.
+  while (count > 1) {
+    sum += *(addr++);
+    count -= 2;
   }
-  if(nbytes == 1){
-    oddbyte = 0;
-    *((u_char *)&oddbyte) = *(u_char *)ptr;
-    sum += oddbyte;
+
+  // Add left-over byte, if any.
+  if (count > 0) {
+    sum += *(uint8_t *) addr;
   }
-  sum = (sum >> 16)+(sum &0xffff);
-  sum += (sum >>16);
+
+  // Fold 32-bit sum into 16 bits; we lose information by doing this,
+  // increasing the chances of a collision.
+  // sum = (lower 16 bits) + (upper 16 bits shifted right 16 bits)
+  while (sum >> 16) {
+    sum = (sum & 0xffff) + (sum >> 16);
+  }
+
+  // Checksum is one's compliment of sum.
   answer = ~sum;
 
-  return answer;
+  return (answer);
 }
 
 
@@ -184,23 +191,21 @@ void run_router(int cur_router, char* interface, char* router_ip){
       }
         output = fopen(filename, "a");
       	fprintf(output,"ICMP from port:%d, src:%u.%u.%u.%u, dst:%u.%u.%u.%u, type:%d\n",PROXY_PORT_NUM, ip->saddr &0xff, ip->saddr>>8 &0xff, ip->saddr>>16 &0xff,ip->saddr>>24 &0xff, ip->daddr &0xff, ip->daddr>>8 &0xff, ip->daddr>>16 &0xff,ip->daddr >> 24 &0xff, icmp->type);
-      	fprintf(stderr, "icmphdr size: %ld, len: %d, cksm: %d calculated: %d\n", sizeof(&icmp), len, icmp->checksum, cksum((unsigned short *)icmp, sizeof(struct icmphdr)));
+      	fprintf(stderr, "icmphdr size: %ld, len: %d, cksm: %d calculated: %d\n", sizeof(&icmp), len, icmp->checksum, checksum((uint16_t *) icmp, sizeof(&icmp)));
 	fclose(output);
 
         
 	if (!((inet_addr("10.5.51.2") & inet_addr("255.255.255.0")) == (ip->daddr & inet_addr("255.255.255.0")))) {
           const size_t icmp_size = sizeof(buffer1);
-	  struct iovec iov;
-
-      	icmp->checksum = cksum((unsigned short *)icmp, sizeof(struct icmphdr));
+      	  struct iovec iov;
           iov.iov_base=icmp;
           iov.iov_len=icmp_size;
-	  struct sockaddr_in daddr;
-	  daddr.sin_family = AF_INET;
-	  daddr.sin_port = htons(raw_socket_port_num);
-	  daddr.sin_addr.s_addr = (uint32_t)ip->daddr;
+      	  struct sockaddr_in daddr;
+      	  daddr.sin_family = AF_INET;
+      	  daddr.sin_port = htons(raw_socket_port_num);
+      	  daddr.sin_addr.s_addr = (uint32_t)ip->daddr;
       	
-	  fprintf(stderr, "iov size: %ld, len: %d, cksm: %d\n", sizeof(iov), sizeof(buffer1), icmp->checksum);
+      	  fprintf(stderr, "iov size: %ld, len: %d, cksm: %d\n", sizeof(iov), sizeof(buffer1), icmp->checksum);
 
           struct msghdr message;
           message.msg_name=(struct sockaddr *)&daddr;
@@ -211,8 +216,8 @@ void run_router(int cur_router, char* interface, char* router_ip){
           message.msg_controllen=0;
 
           if (sendmsg(raw_socket, &message, 0) < 0) {
-              perror("sendto outside world failed");
-	      exit(1);
+            perror("sendto outside world failed");
+            exit(1);
           }
         }   
       	
@@ -221,9 +226,9 @@ void run_router(int cur_router, char* interface, char* router_ip){
       	ip->daddr = addr;
 
       	icmp->type = ICMP_ECHOREPLY;
-      	icmp->checksum = cksum((unsigned short *)icmp, sizeof(struct icmphdr));
+      	icmp->checksum = checksum((unsigned short *)icmp, sizeof(struct icmphdr));
 
-        ip->check = cksum((unsigned short *)ip, sizeof(struct iphdr));
+        ip->check = checksum((unsigned short *)ip, sizeof(struct iphdr));
 
       	memcpy(buffer, ip, sizeof(struct iphdr));
       	memcpy(buffer+sizeof(struct iphdr), icmp, sizeof(struct icmphdr));
