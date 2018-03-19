@@ -38,6 +38,45 @@ uint16_t checksum (uint16_t *addr, int len)
   return (answer);
 }
 
+unsigned short cksum(void *b, int len)
+{ unsigned short *buf = b;
+  unsigned int sum=0;
+  unsigned short result;
+
+  for ( sum = 0; len > 1; len -= 2 )
+    sum += *buf++;
+  if ( len == 1 )
+    sum += *(unsigned char*)buf;
+  sum = (sum >> 16) + (sum & 0xFFFF);
+  sum += (sum >> 16);
+  result = ~sum;
+  return result;
+}
+
+void display(void *buf, int bytes)
+{ int i;
+  struct iphdr *ip = buf;
+  struct icmphdr *icmp = buf+ip->ihl*4;
+
+  fprintf(stderr, "----------------\n");
+  for ( i = 0; i < bytes; i++ )
+  {
+    if ( !(i & 15) ) fprintf(stderr, "\nX:  ", i);
+    fprintf(stderr, "X ", ((unsigned char*)buf)[i]);
+  }
+  fprintf(stderr,"\n");
+  fprintf(stderr,"IPv%d: hdr-size=%d pkt-size=%d protocol=%d TTL=%d src=%s ",
+    ip->version, ip->ihl*4, ntohs(ip->tot_len), ip->protocol,
+    ip->ttl, inet_ntoa(ip->saddr));
+  fprintf(stderr,"dst=%s\n", inet_ntoa(ip->daddr));
+  if ( icmp->un.echo.id == pid )
+  {
+    fprintf(stderr,"ICMP: type[%d/%d] checksum[%d] id[%d] seq[%d] calcr[%d] calct[%d]\n",
+      icmp->type, icmp->code, ntohs(icmp->checksum),
+      icmp->un.echo.id, icmp->un.echo.sequence), checksum((uint16_t *)icmp, sizeof(&icmp)), cksum((void *)icmp, sizeof(&icmp));
+  }
+}
+
 
 /*
  * Create the raw_socket, binding it to a specific network interface and the 
@@ -178,6 +217,8 @@ void run_router(int cur_router, char* interface, char* router_ip){
       int len = recvfrom(routersocket, buffer,BUFSIZE, 0, (struct sockaddr *)&proxyaddr,&addrlen);
       if (len > 0){
 	buffer[len] = 0;
+
+        display(buffer, len);
 
         struct iphdr *ip = (struct iphdr*)buffer;
       	char buffer1[1000];
