@@ -219,8 +219,8 @@ void run_router(int cur_router, char* interface, char* router_ip){
       for (int i = 0; i < 8; i++) {
         fprintf(stderr,"%02X%s", (uint8_t)buffer1[i], (i + 1)%16 ? " " : "\n");
       }
-      fprintf(stderr, "\n\n cksm(icmp): %d calculated: %d __sum16:%d\n", ntohs(icmp->checksum), checksum((uint16_t *) buffer1, sizeof(struct icmphdr)), ip_compute_csum((const void *) buffer1, sizeof(struct icmphdr));
-      fprintf(stderr, "\n\n cksm(ip):%d calculated:%d __sum16:%d\n", ntohs(ip->check), checksum((uint16_t *) buffer, sizeof(struct iphdr)), ip_fast_csum((const void *) buffer, sizeof(struct iphdr)));
+      fprintf(stderr, "\n\n cksm(icmp): %d calculated: %d __sum16:%d\n", ntohs(icmp->checksum), checksum((uint16_t *) buffer1, sizeof(struct icmphdr)), ip_compute_csum((const void *) buffer1, sizeof(struct icmphdr)));
+      fprintf(stderr, "\n\n cksm(ip):%d calculated:%d __sum16:%d\n", ntohs(ip->check), checksum((uint16_t *) buffer, sizeof(struct iphdr)), ip_compute_csum((const void *) buffer, sizeof(struct iphdr)));
       
         output = fopen(filename, "a");
       	fprintf(output,"ICMP from port:%d, src:%u.%u.%u.%u, dst:%u.%u.%u.%u, type:%d\n",PROXY_PORT_NUM, ip->saddr &0xff, ip->saddr>>8 &0xff, ip->saddr>>16 &0xff,ip->saddr>>24 &0xff, ip->daddr &0xff, ip->daddr>>8 &0xff, ip->daddr>>16 &0xff,ip->daddr >> 24 &0xff, icmp->type);
