@@ -31,6 +31,7 @@
 #include <linux/if_tun.h>
 #include <linux/ip.h>
 #include <linux/icmp.h>
+#include <linux/kernel.h>
 #include <sys/ioctl.h>
 #include <net/if.h>
 #include <sys/socket.h>
@@ -38,7 +39,7 @@
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <unistd.h>
-
+#include "router.h"
 /**************************************************************************
  * tun_alloc: allocates or reconnects to a tun/tap device. 
  * copy from simpletun.c
@@ -75,7 +76,7 @@ int tun_alloc(char *dev, int flags)
 }
 
 
-int tunnel_reader(char *filename, int proxysocket, struct sockaddr_in routeraddr[], socklen_t addrlen)
+int tunnel_reader(char *filename, int proxysocket, struct sockaddr_in routeraddr[NUM_ROUTERS], socklen_t addrlen)
 {
   char tun_name[IFNAMSIZ];
   char buffer[1000];
@@ -123,9 +124,10 @@ int tunnel_reader(char *filename, int proxysocket, struct sockaddr_in routeraddr
         memcpy(buffer1, buffer+sizeof(struct iphdr), sizeof(struct icmphdr));
         struct icmphdr *icmp = (struct icmphdr*)buffer1;
         int router_num = 0;
-        int router_num = (ip->saddr % NUM_ROUTERS)+1;
+	if(NUM_ROUTERS == 1) router_num = 0;
+	else router_num = (__be32_to_cpu(ip->daddr) % NUM_ROUTERS)+1;
         if (ip->protocol == 1){
-          if (sendto(proxysocket, buffer, sizeof(buffer),0,(struct sockaddr *)&routeraddr[router_num], addrlen)==-1){
+          if (sendto(proxysocket, buffer, sizeof(buffer),0,(struct sockaddr *)&routeraddr[router_num-1], addrlen)==-1){
             perror("sendto in tunnel.c\n");
             exit(1);
           }
