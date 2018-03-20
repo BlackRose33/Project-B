@@ -344,28 +344,26 @@ void run_router(int cur_router, char* interface, char* router_ip){
         int len = recvfrom(routersocket, buffer,BUFSIZE, 0, (struct sockaddr *)&theiraddr,&addrlen);
         if (len > 0){
           buffer[len] = '\0';
-          uint8_t type = buffer[sizeof(struct iphdr)+1];
+          uint8_t type = buffer[sizeof(struct iphdr)];
 
+	  fprintf(stderr, "%d\n", type);
           if (type == 0x52){
-            records.iCircuit_ID = buffer[sizeof(struct iphdr)+2];
+            records.iCircuit_ID = buffer[sizeof(struct iphdr)+1];
             records.iCircuit_ID = records.iCircuit_ID << 8;
-            records.iCircuit_ID |= buffer[sizeof(struct iphdr)+3];
+            records.iCircuit_ID |= buffer[sizeof(struct iphdr)+2];
 
             records.oCircuit_ID = (cur_router & 0x00FF)<<8;
             records.oCircuit_ID |= 0x01;
 
-            records.next_hop = buffer[sizeof(struct iphdr)+4];
+            records.next_hop = buffer[sizeof(struct iphdr)+3];
             records.next_hop = records.next_hop << 8;
-            records.next_hop |= buffer[sizeof(struct iphdr)+5];
+            records.next_hop |= buffer[sizeof(struct iphdr)+4];
 
             output = fopen(filename, "a");
             fprintf(output,"pkt from port: %d, length: 5, contents: 0x",ntohs(theiraddr.sin_port));
             for(int i = sizeof(struct iphdr); i<len; i++)
-              fprintf(output,"%x",((unsigned char*)buffer)[i]);
+              fprintf(output,"%02x",((unsigned char*)buffer)[i]);
             fclose(output);
-
-            fprintf(stderr, "%d %d %d \n", records.iCircuit_ID, records.oCircuit_ID, records.next_hop);
-            
           }
           if (type == 0x51){
 
