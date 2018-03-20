@@ -257,7 +257,7 @@ int tunnel_reader2(char *filename, int proxysocket, struct sockaddr_in routeradd
           mant_ip->protocol = 253;
           memcpy(datagram+sizeof(struct iphdr), (unsigned char*)tosend, sizeof(tosend));
 
-          if (sendto(proxysocket, datagram, sizeof(datagram),0,(struct sockaddr *)&routeraddr[router_num[cur_hop-1]-1], addrlen)==-1){
+          if (sendto(proxysocket, datagram, sizeof(datagram),0,(struct sockaddr *)&routeraddr[router_num[0]-1], addrlen)==-1){
             perror("sendto in tunnel.c\n");
             exit(1);
           }       
@@ -274,17 +274,15 @@ int tunnel_reader2(char *filename, int proxysocket, struct sockaddr_in routeradd
         //extend circuit complete
         if (type == 0x53){
           FILE *output = fopen(filename, "a");
-          fprintf(output, "pkt from port: %d, length: 3, contents: 0x530001\n
-            incoming extend-done circuit, incoming: 0x1 from port: %d\n", ntohs(theiraddr.sin_port), ntohs(theiraddr.sin_port));
+          fprintf(output, "pkt from port: %d, length: 3, contents: 0x530001\nincoming extend-done circuit, incoming: 0x1 from port: %d\n", ntohs(theiraddr.sin_port), ntohs(theiraddr.sin_port));
           fclose(output);
-
           //sending extend circuit 
           if (cur_hop<MINITOR_HOPS){
             cur_hop += 1;
             uint16_t id = (0*256) + sequence_num;
             uint8_t tosend[5];
             tosend[0] = 0x52;
-            tosend[1] = (id>>8)&0x00FF;
+            tosend[1] = 0x00;
             tosend[2] = (id)&0x00FF;
             if (cur_hop < MINITOR_HOPS){
               tosend[3] = routeraddr[router_num[cur_hop]-1].sin_port >> 8; 
@@ -302,7 +300,7 @@ int tunnel_reader2(char *filename, int proxysocket, struct sockaddr_in routeradd
             mant_ip->protocol = 253;
             memcpy(datagram+sizeof(struct iphdr), (unsigned char*)tosend, sizeof(tosend));
 
-            if (sendto(proxysocket, datagram, sizeof(datagram),0,(struct sockaddr *)&routeraddr[router_num[cur_hop-1]-1], addrlen)==-1){
+            if (sendto(proxysocket, datagram, sizeof(datagram),0,(struct sockaddr *)&routeraddr[router_num[0]-1], addrlen)==-1){
               perror("sendto in tunnel.c\n");
               exit(1);
             }  

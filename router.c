@@ -131,7 +131,8 @@ int create_udp_socket(char* ip){
   memset(&routeraddr, 0, sizeof(routeraddr));
   routeraddr.sin_family = AF_INET;
   routeraddr.sin_port = htons(0);
-  routeraddr.sin_addr.s_addr = inet_addr(ip);
+  //routeraddr.sin_addr.s_addr = inet_addr(ip);
+  routeraddr.sin_addr.s_addr = htonl(INADDR_ANY);
 
   if (bind(routersocket, (struct sockaddr *)&routeraddr, sizeof(routeraddr)) < 0) {
     perror("bind failed");
@@ -318,13 +319,15 @@ void run_router(int cur_router, char* interface, char* router_ip){
           memcpy(buffer1, buffer+sizeof(struct iphdr), size);
           struct icmphdr *icmp = (struct icmphdr*) buffer1;
         
-          struct in_addr src, dst;
+	  size = icmp->type;
+         /* struct in_addr src, dst;
           src.s_addr = ip->saddr;
           dst.s_addr = ip->daddr;
 
+  
           output = fopen(filename, "a");
-          fprintf(output,"ICMP from raw_socket, src:%s, dst:%s, type:%d\n",inet_ntoa(src), inet_ntoa(dst), icmp->type);
-          fclose(output);
+          fprintf(output,"ICMP from raw_sock, src:%s, dst:%s, type:%d\n",inet_ntoa(src), inet_ntoa(dst), icmp->type);
+          fclose(output);*/
         }
       }
     } while(1);
@@ -332,7 +335,6 @@ void run_router(int cur_router, char* interface, char* router_ip){
 
   // Select loop for listening and responding for stage 5 and 6
   if (STAGE > 4){
-    int sequence = 1;
     struct record records;//Since for project B we would only be creating 1 circuit not multiple
     do{
       memcpy(&tempset, &readset, sizeof(tempset));
@@ -362,16 +364,20 @@ void run_router(int cur_router, char* interface, char* router_ip){
               records.oCircuit_ID = (cur_router & 0xFFFF)<<8;
               records.oCircuit_ID |= 0x01;
 
+	      uint16_t temp = 0x0000;
               records.next_hop = buffer[sizeof(struct iphdr)+3];
-              records.next_hop = records.next_hop << 8;
-              records.next_hop |= buffer[sizeof(struct iphdr)+4];
+              records.next_hop = (records.next_hop << 8);
+              temp = buffer[sizeof(struct iphdr)+4];
+	      temp = temp << 8;
+	      temp = temp >> 8;
+              records.next_hop |= temp;
 
               output = fopen(filename, "a");
               fprintf(output,"pkt from port: %d, length: 5, contents: 0x",ntohs(theiraddr.sin_port));
               for(int i = sizeof(struct iphdr); i<len; i++)
                 fprintf(output,"%02x",((unsigned char*)buffer)[i]);
+              fprintf(output,"\nnew extend circuit: incoming: 0x%x, outgoing: 0x%x at %d\n",records.iCircuit_ID, records.oCircuit_ID, ntohs(records.next_hop));
               fclose(output);
-              fprintf(output,"new extend circuit: incoming: 0x%x, outgoing: 0x%x at %d",records.iCircuit_ID, records.oCircuit_ID, ntohs(records.next_hop));
 
               //Prepare extend done packet to forward
               uint8_t tosend[3];
@@ -393,24 +399,22 @@ void run_router(int cur_router, char* interface, char* router_ip){
                 exit(1);
               } 
             } else {
-              buffer[sizeof(struct iphdr)+1] = cur_router & 0xFF;
+              buffer[sizeof(struct iphdr)+1] = cur_router & 0x00FF;
               buffer[sizeof(struct iphdr)+2] = 0x01;
 
               fprintf(output,"pkt from port: %d, length: 5, contents: 0x",ntohs(theiraddr.sin_port));
               for(int i = sizeof(struct iphdr); i<len; i++)
                 fprintf(output,"%02x",((unsigned char*)buffer)[i]);
-              fprintf(output,"forwarding extend circuit: incoming: 0x%x, outgoing: 0x%x at %d",records.iCircuit_ID, records.oCircuit_ID, ntohs(records.next_hop));
+              fprintf(output,"\nforwarding extend circuit: incoming: 0x%x, outgoing: 0x%x at %d\n",records.iCircuit_ID, records.oCircuit_ID, ntohs(records.next_hop));
               fclose(output);
 
               // Their information
               memset(&nexthopaddr, 0, sizeof(nexthopaddr));
               nexthopaddr.sin_family = AF_INET;
               nexthopaddr.sin_port = records.next_hop;
-              if (inet_aton("127.0.0.1", &nexthopaddr.sin_addr)==0) {
-                perror("inet_aton() failed");
-                exit(1);
-              } 
-              if (sendto(routersocket, buffer, sizeof(buffer),0,(struct sockaddr *)&nexthopaddr, addrlen)==-1){
+              nexthopaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+
+              if (sendto(routersocket, buffer, len,0,(struct sockaddr *)&nexthopaddr, addrlen)==-1){
                 perror("sendto in router.c 0x52 2\n");
                 exit(1);
               } 
@@ -432,7 +436,15 @@ void run_router(int cur_router, char* interface, char* router_ip){
             buffer[sizeof(struct iphdr)+1] = (records.iCircuit_ID>>8)&0x00FF ;
             buffer[sizeof(struct iphdr)+2] = (records.iCircuit_ID)&0x00FF; 
 
-            if (sendto(proxysocket, datagram, sizeof(datagram),0,(struct sockaddr *)&routeraddr[router_num[cur_hop-1]-1], addrlen)==-1){
+              // Their information
+              memset(&nexthopaddr, 0, sizeof(nexthopaddr));
+              nexthopaddr.sin_family = AF_INET;
+              nexthopaddr.sin_port = records.prev_hop;
+              if (inet_aton("127.0.0.1", &nexthopaddr.sin_addr)==0) {
+                perror("inet_aton() failed");
+                exit(1);
+              } 
+            if (sendto(routersocket, buffer, len, 0,(struct sockaddr *)&nexthopaddr, addrlen)==-1){
               perror("sendto in tunnel.c\n");
               exit(1);
             }  

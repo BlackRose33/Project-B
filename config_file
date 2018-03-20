@@ -2,4 +2,4 @@
 stage 5
 # There can be other comments, or variable numbers of spaces or tabs in lines.
 num_routers    4
-minitor_hops 1
+minitor_hops 2
