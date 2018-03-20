@@ -319,10 +319,14 @@ int tunnel_reader2(char *filename, int proxysocket, struct sockaddr_in routeradd
             tosend[0] = 0x51;
             tosend[1] = 0x00;
             tosend[2] = (id)&0x00FF;
-
-            char datagram[sizeof(tosend)+ntohs(ip->tot_len)];
-            memcpy(datagram, tosend, 3);
-            memcpy(datagram+3, store_packet_while_creating_circuit,ntohs(ip->tot_len));
+            
+            char datagram[sizeof(struct iphdr)+sizeof(tosend)+ntohs(ip->tot_len)];
+            struct iphdr *mant_ip = (struct iphdr*)datagram;
+            mant_ip->saddr = inet_addr("127.0.0.1");
+            mant_ip->daddr = inet_addr("127.0.0.1");
+            mant_ip->protocol = 253;
+            memcpy(datagram+sizeof(struct iphdr), (unsigned char*)tosend, sizeof(tosend));
+            memcpy(datagram+sizeof(struct iphdr)+sizeof(tosend), store_packet_while_creating_circuit,ntohs(ip->tot_len));
 
             if (sendto(proxysocket, datagram, sizeof(datagram),0,(struct sockaddr *)&routeraddr[router_num[0]-1], addrlen)==-1){
               perror("sendto in tunnel.c\n");
@@ -335,15 +339,11 @@ int tunnel_reader2(char *filename, int proxysocket, struct sockaddr_in routeradd
           memcpy(ipbuffer, buffer+sizeof(struct iphdr)+3, len-sizeof(struct iphdr)-3);
           struct iphdr *ip = (struct iphdr*)ipbuffer;
 
-          struct in_addr src, dst;
-          src.s_addr = ip->saddr;
-          dst.s_addr = ip->daddr;
-
           FILE *output = fopen(filename, "a");
           fprintf(output, "pkt from port: %d, length: %d, contents: 0x", ntohs(theiraddr.sin_port), ntohs(ip->tot_len)+3);
           for(int i = sizeof(struct iphdr); i<len; i++)
                 fprintf(output,"%02x",((unsigned char*)buffer)[i]);
-          fprintf(output,"\nincoming packet, circuit incoming: 0x01, src:%s, dst: %s\n", inet_ntoa(src), inet_ntoa(dst));
+          fprintf(output,"\nincoming packet, circuit incoming: 0x01, src:%s,dst:%u.%u.%u.%u\n", inet_ntoa(src), ip->daddr &0xff, ip->daddr>>8 &0xff, ip->daddr>>16 &0xff,ip->daddr >> 24 &0xff);
           fclose(output);
           
         }

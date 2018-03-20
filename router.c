@@ -467,7 +467,7 @@ void run_router(int cur_router, char* interface, char* router_ip){
             fprintf(output, "pkt from port: %d, length: %d, contents: 0x", ntohs(theiraddr.sin_port), ntohs(ip->tot_len)+3);
             for(int i = sizeof(struct iphdr); i<len; i++)
                   fprintf(output,"%02x",((unsigned char*)buffer)[i]);
-            fprintf(output,"\nrelay packet, circuit incoming: %x, outgoing: %x, incoming src:%s, outgoing src: %s, dst: %s\n", records.iCircuit_ID, records.oCircuit_ID, inet_ntoa(src), router_ip, inet_ntoa(dst));
+            fprintf(output,"\nrelay packet, circuit incoming: 0x%x, outgoing: 0x%x, incoming src:%s, outgoing src: %s, dst: %s\n", records.iCircuit_ID, records.oCircuit_ID, inet_ntoa(src), router_ip, inet_ntoa(dst));
             fclose(output);
 
             if(records.next_hop == 0xFFFF){
@@ -498,7 +498,7 @@ void run_router(int cur_router, char* interface, char* router_ip){
                 exit(1);
               }
             } else{
-              ip->saddr = htonl(router_ip);
+              ip->saddr = inet_addr(router_ip);
               ip->check = 0x00;
               ip->check = checksum((unsigned short *)ip, sizeof(struct iphdr));
               // Their information
