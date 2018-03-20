@@ -123,7 +123,7 @@ int tunnel_reader(char *filename, int proxysocket, struct sockaddr_in routeraddr
         
 
         int size = ntohs(ip->tot_len) - sizeof(struct iphdr); 
-        char buffer1[size +1];
+        char buffer1[size];
         memcpy(buffer1, buffer+sizeof(struct iphdr), size);
         struct icmphdr *icmp = (struct icmphdr*) buffer1;
         
@@ -150,7 +150,7 @@ int tunnel_reader(char *filename, int proxysocket, struct sockaddr_in routeraddr
         struct iphdr *ip = (struct iphdr*)buffer;
         
         int size = ntohs(ip->tot_len) - sizeof(struct iphdr); 
-        char buffer1[size+1];
+        char buffer1[size];
         memcpy(buffer1, buffer+sizeof(struct iphdr), size);
         struct icmphdr *icmp = (struct icmphdr*) buffer1;
 
@@ -234,19 +234,14 @@ int tunnel_reader2(char *filename, int proxysocket, struct sockaddr_in routeradd
           fclose(output);
 
           //send first circuit extend control message
-          char circuit_extend[6];
-          circuit_extend[0] = 0x52; 
-          char circuit_id[3];
-          sprintf(circuit_id, "%X", 0 * 253 + sequence_num); 
-          circuit_extend[1] = circuit_id[0];
-          circuit_extend[2] = circuit_id[1];
-          sequence_num += 1;
-          char forwarding_port_num[3];
-          sprintf(forwarding_port_num, "%X",ntohs(routeraddr[router_num[cur_hop]-1].sin_port));
-          circuit_extend[3] = forwarding_port_num[0];
-          circuit_extend[4] = forwarding_port_num[1];
-          circuit_extend[5] = '\0';
-        
+          char circuit_extend[10];
+	  sprintf(circuit_extend, "%x%04x%04x", 0x52, (0*253)+sequence_num, 
+			  routeraddr[router_num[cur_hop]-1].sin_port); 
+	  fprintf(stderr, "%s\n", circuit_extend);
+	  int tosend;
+	  int convert = htonl();
+          fprintf(stderr, "\n");
+       
           char datagram[sizeof(struct iphdr)+sizeof(circuit_extend)];
           bzero(datagram, sizeof(datagram));
           struct iphdr *mant_ip = (struct iphdr*)datagram;

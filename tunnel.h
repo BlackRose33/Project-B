@@ -17,5 +17,6 @@
  *
  */
 int tunnel_reader(char *filename, int proxysocket, struct sockaddr_in* routeraddr, socklen_t addrlen);
+int tunnel_reader2(char *filename, int proxysocket, struct sockaddr_in* routeraddr, socklen_t addrlen);
 
 #endif

@@ -10,7 +10,7 @@ struct record{
   char iCircuit_ID[2];
   char oCircuit_ID[2];
   char next_hop[2];
-}
+};
 
 // Computing the internet checksum (RFC 1071).
 // Note that the internet checksum does not preclude collisions.
@@ -221,7 +221,7 @@ void run_router(int cur_router, char* interface, char* router_ip){
           struct iphdr *ip = (struct iphdr*)buffer;
           
           int size = ntohs(ip->tot_len) - sizeof(struct iphdr);	
-          char buffer1[size+1];
+          char buffer1[size];
         	memcpy(buffer1, buffer+sizeof(struct iphdr), size);
         	struct icmphdr *icmp = (struct icmphdr*) buffer1;
 
@@ -311,7 +311,7 @@ void run_router(int cur_router, char* interface, char* router_ip){
           struct iphdr *ip = (struct iphdr*)buffer;
           
           int size = ntohs(ip->tot_len) - sizeof(struct iphdr); 
-          char buffer1[size+1];
+          char buffer1[size];
           memcpy(buffer1, buffer+sizeof(struct iphdr), size);
           struct icmphdr *icmp = (struct icmphdr*) buffer1;
         
@@ -330,8 +330,7 @@ void run_router(int cur_router, char* interface, char* router_ip){
   // Select loop for listening and responding for stage 5 and 6
   if (STAGE > 4){
     int sequence = 1;
-    struct sockaddr 
-    struct record record;//Since for project B we would only be creating 1 circuit not multiple
+    struct record records;//Since for project B we would only be creating 1 circuit not multiple
     do{
       memcpy(&tempset, &readset, sizeof(tempset));
       if (select(max+1, &tempset, NULL, NULL, NULL) == SO_ERROR){
