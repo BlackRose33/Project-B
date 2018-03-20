@@ -84,9 +84,9 @@ int create_raw_socket(char* interface, char *ip){
   snprintf(ifr.ifr_name, sizeof(ifr.ifr_name), interface);
   if ((rc = setsockopt(raw_socket, SOL_SOCKET, SO_BINDTODEVICE, (void *)&ifr, sizeof(ifr))) < 0)
   {
-      perror("Server-setsockopt() error for SO_BINDTODEVICE");
-      close(raw_socket);
-      exit(1);
+    perror("Server-setsockopt() error for SO_BINDTODEVICE");
+    close(raw_socket);
+    exit(1);
   }
 
   memset(&routeraddr, 0, sizeof(routeraddr));
@@ -204,9 +204,9 @@ void run_router(int cur_router, char* interface, char* router_ip){
 	    bzero(buffer, BUFSIZE);
       int len = recvfrom(routersocket, buffer,BUFSIZE, 0, (struct sockaddr *)&proxyaddr,&addrlen);
       if (len > 0){
-	buffer[len] = 0;
+      	buffer[len] = 0;
 
-      //  display(buffer, len);
+        // display(buffer, len);
 
         struct iphdr *ip = (struct iphdr*)buffer;
       	char buffer1[1000];
@@ -217,10 +217,10 @@ void run_router(int cur_router, char* interface, char* router_ip){
 
         output = fopen(filename, "a");
       	fprintf(output,"ICMP from port:%d, src:%u.%u.%u.%u, dst:%u.%u.%u.%u, type:%d\n",PROXY_PORT_NUM, ip->saddr &0xff, ip->saddr>>8 &0xff, ip->saddr>>16 &0xff,ip->saddr>>24 &0xff, ip->daddr &0xff, ip->daddr>>8 &0xff, ip->daddr>>16 &0xff,ip->daddr >> 24 &0xff, icmp->type);
-	fclose(output);
+      	fclose(output);
 
         
-	if (!((inet_addr("10.5.51.2") & inet_addr("255.255.255.0")) == (ip->daddr & inet_addr("255.255.255.0")))) {
+      	if (!((inet_addr("10.5.51.2") & inet_addr("255.255.255.0")) == (ip->daddr & inet_addr("255.255.255.0")))) {
           const size_t icmp_size = sizeof(buffer1);
       	  struct iovec iov;
           iov.iov_base=icmp;
@@ -243,9 +243,9 @@ void run_router(int cur_router, char* interface, char* router_ip){
             perror("sendto outside world failed");
             exit(1);
           }
-        output = fopen(filename, "a");
-      	fprintf(output,"ICMP from raw sock, src:%u.%u.%u.%u, dst:%s, type:0\n",ip->daddr &0xff, ip->daddr>>8 &0xff, ip->daddr>>16 &0xff,ip->daddr >> 24 &0xff, router_ip);
-	fclose(output);
+          output = fopen(filename, "a");
+        	fprintf(output,"ICMP from raw sock, src:%u.%u.%u.%u, dst:%s, type:0\n",ip->daddr &0xff, ip->daddr>>8 &0xff, ip->daddr>>16 &0xff,ip->daddr >> 24 &0xff, router_ip);
+        	fclose(output);
         }   
       	
         __u32 addr = ip->saddr;
@@ -253,23 +253,25 @@ void run_router(int cur_router, char* interface, char* router_ip){
       	ip->daddr = addr;
 
       	icmp->type = ICMP_ECHOREPLY;
-	icmp->checksum = 0x00;      
-	icmp->checksum = checksum((unsigned short *)icmp, sizeof(struct icmphdr));
+      	icmp->checksum = 0x00;      
+      	icmp->checksum = checksum((unsigned short *)icmp, sizeof(struct icmphdr));
 
-	ip->check = 0x00;
+      	ip->check = 0x00;
         ip->check = checksum((unsigned short *)ip, sizeof(struct iphdr));
 
       	memcpy(buffer, ip, sizeof(struct iphdr));
       	memcpy(buffer+sizeof(struct iphdr), buffer1, sizeof(buffer1));
       	buffer[sizeof(struct iphdr) + size] = 0;
         if (sendto(routersocket, buffer, sizeof(buffer), 0, (struct sockaddr *)&proxyaddr, addrlen)==-1) {
-          	  perror("sendto proxy failed");
-          	  exit(1);
+      	  perror("sendto proxy failed");
+      	  exit(1);
       	}
+        free(buffer1);
       }
     }
     if FD_ISSET(raw_socket, &readset){
-      struct icmphdr *icmp;
+
+      /*struct icmphdr *icmp;
       struct iovec iov;
       struct msghdr msg;
       struct sockaddr_in src; 
@@ -289,13 +291,31 @@ void run_router(int cur_router, char* interface, char* router_ip){
       }
 
       output = fopen(filename, "a");
-      	fprintf(output,"ICMP from raw_socket, src:%s, dst:%s, type:%d\n",inet_ntoa(src.sin_addr), router_ip, icmp->type);
-	fclose(output);
-     /* int n=recvfrom(raw_socket,buffer,BUFSIZE,0,(struct sockaddr *)&proxyaddr,&addrlen);
+      fprintf(output,"ICMP from raw_socket, src:%s, dst:%s, type:%d\n",inet_ntoa(src.sin_addr), router_ip, icmp->type);
+      fclose(output);
+      */
 
-      struct iphdr *ip_hdr = (struct iphdr *)buffer;
-      struct icmphdr *icmp_hdr = (struct icmphdr *)((char *)ip_hdr + (4 * ip_hdr->ihl));
-    */}
+      bzero(buffer, BUFSIZE);
+      int len=recvfrom(raw_socket,buffer,BUFSIZE,0,(struct sockaddr *)&proxyaddr,&addrlen);
+      if (len > 0){
+        buffer[len] = 0;
+        struct iphdr *ip = (struct iphdr*)buffer;
+        char buffer1[1000];
+        
+        int size = ntohs(ip->tot_len) - sizeof(struct iphdr); 
+        memcpy(buffer1, buffer+sizeof(struct iphdr), size);
+        struct icmphdr *icmp = (struct icmphdr*) buffer1;
+      
+        struct in_addr src, dst;
+        src.s_addr = ip->saddr;
+        dst.s_addr = ip->daddr;
+
+        output = fopen(filename, "a");
+        fprintf(output,"ICMP from raw_socket, src:%s, dst:%s, type:%d\n",inet_ntoa(src), inet_ntoa(dst), icmp->type);
+        fclose(output);
+        free(buffer1);
+      }
+    }
   } while(1);
 
   close(raw_socket);

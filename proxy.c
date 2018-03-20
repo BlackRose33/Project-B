@@ -95,7 +95,10 @@ void create_and_listen(){
     if (recvlen > 0) {
       buffer[recvlen] = 0;
       output = fopen(filename, "a");
-      fprintf(output, "router: %d, pid: %s, port: %d\n", i+1, buffer, ntohs(routeraddr[i].sin_port));
+      if (STAGE <=4)
+        fprintf(output, "router: %d, pid: %s, port: %d\n", i+1, buffer, ntohs(routeraddr[i].sin_port));
+      if (STAGE >4)
+        fprintf(output, "router: %d, pid: %s, port: %d IP:%s\n", i+1, buffer, ntohs(routeraddr[i].sin_port), inet_ntoa(routeraddr[i].sin_addr));
       fclose(output);
     }    
   }
