@@ -168,7 +168,10 @@ void run_router(int cur_router, char* interface, char* router_ip){
   router_num = cur_router + '0';
   sprintf(filename, "stage%c.router%c.out", stage, router_num);
   output = fopen(filename, "w");
-  fprintf(output, "router: %d, pid: %d, port: %d\n", cur_router, getpid(), router_port_num);
+  if (STAGE <= 4)
+    fprintf(output, "router: %d, pid: %d, port: %d\n", cur_router, getpid(), router_port_num);
+  if (STAGE > 4)
+    fprintf(output, "router: %d, pid: %d, port: %d IP:%s\n", cur_router, getpid(), router_port_num, router_ip);
   fclose(output);
 
   // Send pid to proxy (I'm alive msg)
@@ -266,7 +269,6 @@ void run_router(int cur_router, char* interface, char* router_ip){
       	  perror("sendto proxy failed");
       	  exit(1);
       	}
-        free(buffer1);
       }
     }
     if FD_ISSET(raw_socket, &readset){
@@ -313,7 +315,6 @@ void run_router(int cur_router, char* interface, char* router_ip){
         output = fopen(filename, "a");
         fprintf(output,"ICMP from raw_socket, src:%s, dst:%s, type:%d\n",inet_ntoa(src), inet_ntoa(dst), icmp->type);
         fclose(output);
-        free(buffer1);
       }
     }
   } while(1);
