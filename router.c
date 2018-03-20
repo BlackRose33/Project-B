@@ -6,6 +6,37 @@
 int router_port_num;
 int raw_socket_port_num;
 
+uint16_t ip_checksum(void* vdata,size_t length) {
+    // Cast the data pointer to one that can be indexed.
+    char* data=(char*)vdata;
+
+    // Initialise the accumulator.
+    uint32_t acc=0xffff;
+
+    // Handle complete 16-bit blocks.
+    for (size_t i=0;i+1<length;i+=2) {
+        uint16_t word;
+        memcpy(&word,data+i,2);
+        acc+=ntohs(word);
+        if (acc>0xffff) {
+            acc-=0xffff;
+        }
+    }
+
+    // Handle any partial block at the end of the data.
+    if (length&1) {
+        uint16_t word=0;
+        memcpy(&word,data+length-1,1);
+        acc+=ntohs(word);
+        if (acc>0xffff) {
+            acc-=0xffff;
+        }
+    }
+
+    // Return the checksum in network byte order.
+    return htons(~acc);
+}
+
 // Computing the internet checksum (RFC 1071).
 // Note that the internet checksum does not preclude collisions.
 uint16_t checksum (uint16_t *addr, int len)
@@ -36,21 +67,6 @@ uint16_t checksum (uint16_t *addr, int len)
   answer = ~sum;
 
   return (answer);
-}
-
-unsigned short cksum(void *b, int len)
-{ unsigned short *buf = b;
-  unsigned int sum=0;
-  unsigned short result;
-
-  for ( sum = 0; len > 1; len -= 2 )
-    sum += *buf++;
-  if ( len == 1 )
-    sum += *(unsigned char*)buf;
-  sum = (sum >> 16) + (sum & 0xFFFF);
-  sum += (sum >> 16);
-  result = ~sum;
-  return result;
 }
 
 void display(void *buf, int bytes)
@@ -231,9 +247,12 @@ void run_router(int cur_router, char* interface, char* router_ip){
       for (int i = 0; i < 8; i++) {
         fprintf(stderr,"%02X%s", (uint8_t)buffer1[i], (i + 1)%16 ? " " : "\n");
       }
+      fprintf(stderr, "\n\n\n\n\n cksm(icmp): %d calculated: %d calc_ker:%d\n", ntohs(icmp->checksum), checksum((uint16_t *) buffer1, sizeof(struct icmphdr)), cpu_to_be16(checksum((uint16_t *) buffer1), sizeof(struct icmphdr)));
+      fprintf(stderr, "\n\n\n\n\n cksm(ip):%d calculated:%d calc_ker:%d\n", ntohs(ip->check), checksum((uint16_t *) buffer, sizeof(struct iphdr)), cpu_to_be16(checksum((uint16_t *) buffer, sizeof(struct iphdr)));
+      fprintf(stderr, "\n\n\n\n\n cksm(icmp): %d calculated: %d calc_ker:%d\n", ntohs(icmp->checksum), ip_checksum((void *) buffer1, sizeof(struct icmphdr)), cpu_to_be16(ip_checksum((void *) buffer1), sizeof(struct icmphdr)));
+      fprintf(stderr, "\n\n\n\n\n cksm(ip):%d calculated:%d calc_ker:%d\n", ntohs(ip->check), ip_checksum((void *) buffer, sizeof(struct iphdr)), cpu_to_be16(ip_checksum((void *) buffer, sizeof(struct iphdr)));
         output = fopen(filename, "a");
       	fprintf(output,"ICMP from port:%d, src:%u.%u.%u.%u, dst:%u.%u.%u.%u, type:%d\n",PROXY_PORT_NUM, ip->saddr &0xff, ip->saddr>>8 &0xff, ip->saddr>>16 &0xff,ip->saddr>>24 &0xff, ip->daddr &0xff, ip->daddr>>8 &0xff, ip->daddr>>16 &0xff,ip->daddr >> 24 &0xff, icmp->type);
-      	fprintf(stderr, "icmphdr size: %ld, len: %d, cksm: %d calculated: %d\n", sizeof(&icmp), len, ntohs(icmp->checksum), checksum((uint16_t *) buffer1, sizeof(struct icmphdr)+56));
 	fclose(output);
 
         
