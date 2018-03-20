@@ -124,7 +124,7 @@ int tunnel_reader(char *filename, int proxysocket, struct sockaddr_in routeraddr
         memcpy(buffer1, buffer+sizeof(struct iphdr), sizeof(struct icmphdr));
         struct icmphdr *icmp = (struct icmphdr*)buffer1;
         int router_num = 0;
-	if(NUM_ROUTERS == 1) router_num = 0;
+	if(NUM_ROUTERS == 1) router_num = 1;
 	else router_num = (__be32_to_cpu(ip->daddr) % NUM_ROUTERS)+1;
         if (ip->protocol == 1){
           if (sendto(proxysocket, buffer, sizeof(buffer),0,(struct sockaddr *)&routeraddr[router_num-1], addrlen)==-1){
