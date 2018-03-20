@@ -234,29 +234,28 @@ int tunnel_reader2(char *filename, int proxysocket, struct sockaddr_in routeradd
           fclose(output);
 
           //send first circuit extend control message
-          char circuit_extend[10];
-	  sprintf(circuit_extend, "%x%04x%04x", 0x52, (0*253)+sequence_num, 
-			  routeraddr[router_num[cur_hop]-1].sin_port); 
-	  fprintf(stderr, "%s\n", circuit_extend);
-	  int tosend;
-	  int convert = htonl();
-          fprintf(stderr, "\n");
+	  uint16_t id = (0*256) + sequence_num;
+
+	  uint8_t tosend[5];
+
+	  tosend[0] = 0x52;
+	  tosend[1] = (id>>8)&0x00FF;
+	  tosend[2] = (id)&0x00FF;
+	  tosend[3] = routeraddr[router_num[cur_hop]-1].sin_port >> 8; 
+	  tosend[4] = routeraddr[router_num[cur_hop]-1].sin_port & 0xFF; 
        
-          char datagram[sizeof(struct iphdr)+sizeof(circuit_extend)];
+          char datagram[sizeof(struct iphdr)+sizeof(tosend)];
           bzero(datagram, sizeof(datagram));
           struct iphdr *mant_ip = (struct iphdr*)datagram;
           mant_ip->saddr = inet_addr("127.0.0.1");
           mant_ip->daddr = inet_addr("127.0.0.1");
           mant_ip->protocol = 253;
-          memcpy(datagram+sizeof(struct iphdr), circuit_extend, sizeof(circuit_extend));
+          memcpy(datagram+sizeof(struct iphdr), (unsigned char*)tosend, sizeof(tosend));
 
           if (sendto(proxysocket, datagram, sizeof(datagram),0,(struct sockaddr *)&routeraddr[router_num[cur_hop]-1], addrlen)==-1){
             perror("sendto in tunnel.c\n");
             exit(1);
           }       
-        //   FILE *output = fopen(filename, "a");
-        //   fprintf(output, "ICMP packet from tunnel, src:%u.%u.%u.%u, dst:%u.%u.%u.%u, type:%d\n",ip->saddr &0xff, ip->saddr>>8 &0xff, ip->saddr>>16 &0xff,ip->saddr>>24 &0xff, ip->daddr &0xff, ip->daddr>>8 &0xff, ip->daddr>>16 &0xff,ip->daddr >> 24 &0xff, icmp->type);
-        //   fclose(output);
         }
       }
     }
