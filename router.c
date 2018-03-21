@@ -291,30 +291,6 @@ void run_router(int cur_router, char* interface, char* router_ip){
       //raw socket
       if FD_ISSET(raw_socket, &tempset){
 
-        /*struct icmphdr *icmp;
-        struct iovec iov;
-        struct msghdr msg;
-        struct sockaddr_in src; 
-
-        iov.iov_base = &icmp;
-        iov.iov_len = sizeof(icmp);
-        msg.msg_name = (void*)&src;
-        msg.msg_namelen = sizeof(src);
-        msg.msg_iov = &iov;
-        msg.msg_iovlen = 1;
-        msg.msg_flags = 0;
-        msg.msg_control = 0;
-        msg.msg_controllen = 0;
-        if(recvmsg(raw_socket, &msg, 0)<0){
-          perror("receiving failed");
-  	exit(1);
-        }
-
-        output = fopen(filename, "a");
-        fprintf(output,"ICMP from raw_socket, src:%s, dst:%s, type:%d\n",inet_ntoa(src.sin_addr), router_ip, icmp->type);
-        fclose(output);
-        */
-
         bzero(buffer, BUFSIZE);
         int len=recvfrom(raw_socket,buffer,BUFSIZE,0,(struct sockaddr *)&theiraddr,&addrlen);
         if (len > 0){
