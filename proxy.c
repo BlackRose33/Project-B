@@ -108,7 +108,7 @@ void create_and_listen(){
   }
 
   if (STAGE == 5 || STAGE == 6){
-    printf("On to stage 5\n");
+    tunnel_reader2(filename, proxysocket, routeraddr, addrlen);
   }
 
   close(proxysocket);
