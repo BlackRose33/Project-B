@@ -14,9 +14,16 @@
 #include <unistd.h>
 
 /*
- *
+ * For stages 1 to 4
+ * The function reads from the tunnel and contains the select loop implementation for the tunnel and proxysocket
  */
 int tunnel_reader(char *filename, int proxysocket, struct sockaddr_in* routeraddr, socklen_t addrlen);
+
+/*
+ * For stages 5 and 6
+ * The function reads from the tunnel and contains the select loop implementation for the tunnel and proxysocket
+ * The proxysocket sectioon of the select loop in this function contains steps for handling the mantitor control packets.
+ */
 int tunnel_reader2(char *filename, int proxysocket, struct sockaddr_in* routeraddr, socklen_t addrlen);
 
 #endif

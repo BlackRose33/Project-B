@@ -47,6 +47,7 @@ uint16_t checksum (uint16_t *addr, int len)
   return (answer);
 }
 
+//Helper function, only used for debugging
 void display(void *buf, int bytes)
 { int i;
   struct iphdr *ip = buf;
@@ -148,6 +149,10 @@ int create_udp_socket(char* ip){
   return routersocket;
 }
 
+
+/*
+ * Check header file
+ */
 void run_router(int cur_router, char* interface, char* router_ip){
   struct sockaddr_in proxyaddr, theiraddr, nexthopaddr;
   int routersocket, raw_socket;
@@ -214,6 +219,7 @@ void run_router(int cur_router, char* interface, char* router_ip){
         close(raw_socket);
         exit(1);
       }
+      //udp socket
       if FD_ISSET(routersocket, &tempset){
   	    bzero(buffer, BUFSIZE);
         int len = recvfrom(routersocket, buffer,BUFSIZE, 0, (struct sockaddr *)&theiraddr,&addrlen);
@@ -282,6 +288,7 @@ void run_router(int cur_router, char* interface, char* router_ip){
         	}
         }
       }
+      //raw socket
       if FD_ISSET(raw_socket, &tempset){
 
         /*struct icmphdr *icmp;
@@ -418,12 +425,9 @@ void run_router(int cur_router, char* interface, char* router_ip){
                 perror("sendto in router.c 0x52 2\n");
                 exit(1);
               } 
-
             }
           }
-          if (type == 0x51){
 
-          }
           if (type == 0x53){
             FILE *output = fopen(filename, "a");
             fprintf(output, "pkt from port: %d, length: 3, contents: 0x", ntohs(theiraddr.sin_port));
@@ -440,17 +444,101 @@ void run_router(int cur_router, char* interface, char* router_ip){
               memset(&nexthopaddr, 0, sizeof(nexthopaddr));
               nexthopaddr.sin_family = AF_INET;
               nexthopaddr.sin_port = records.prev_hop;
-              if (inet_aton("127.0.0.1", &nexthopaddr.sin_addr)==0) {
+              nexthopaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+              /*if (inet_aton("127.0.0.1", &nexthopaddr.sin_addr)==0) {
                 perror("inet_aton() failed");
                 exit(1);
-              } 
+              } */
             if (sendto(routersocket, buffer, len, 0,(struct sockaddr *)&nexthopaddr, addrlen)==-1){
               perror("sendto in tunnel.c\n");
               exit(1);
             }  
           }
-          if (type == 0x54){
+          if (type == 0x51){
+            char ipbuffer[len-sizeof(struct iphdr)-3];
+            memcpy(ipbuffer, buffer+sizeof(struct iphdr)+3, len-sizeof(struct iphdr)-3);
+            struct iphdr *ip = (struct iphdr*)ipbuffer;
 
+            struct in_addr src, dst;
+            src.s_addr = ip->saddr;
+            dst.s_addr = ip->daddr;
+
+            FILE *output = fopen(filename, "a");
+            fprintf(output, "pkt from port: %d, length: %d, contents: 0x", ntohs(theiraddr.sin_port), ntohs(ip->tot_len)+3);
+            for(int i = sizeof(struct iphdr); i<len; i++)
+                  fprintf(output,"%02x",((unsigned char*)buffer)[i]);
+            fprintf(output,"\nrelay packet, circuit incoming: %x, outgoing: %x, incoming src:%s, outgoing src: %s, dst: %s\n", records.iCircuit_ID, records.oCircuit_ID, inet_ntoa(src), router_ip, inet_ntoa(dst));
+            fclose(output);
+
+            if(records.next_hop == 0xFFFF){
+              int size = ntohs(ip->tot_len) - sizeof(struct iphdr); 
+              char buffer1[size];
+              memcpy(buffer1, ipbuffer+sizeof(struct iphdr), size);
+              struct icmphdr *icmp = (struct icmphdr*) buffer1;
+              const size_t icmp_size = sizeof(buffer1);
+              struct iovec iov;
+              iov.iov_base=icmp;
+              iov.iov_len=icmp_size;
+              struct sockaddr_in daddr;
+              daddr.sin_family = AF_INET;
+              daddr.sin_port = htons(raw_socket_port_num);
+              daddr.sin_addr.s_addr = (uint32_t)ip->daddr;
+            
+
+              struct msghdr message;
+              message.msg_name=(struct sockaddr *)&daddr;
+              message.msg_namelen=addrlen;
+              message.msg_iov=&iov;
+              message.msg_iovlen=1;
+              message.msg_control=0;
+              message.msg_controllen=0;
+
+              if (sendmsg(raw_socket, &message, 0) < 0) {
+                perror("sendto outside world failed");
+                exit(1);
+              }
+            } else{
+              ip->saddr = htonl(router_ip);
+              ip->check = 0x00;
+              ip->check = checksum((unsigned short *)ip, sizeof(struct iphdr));
+              // Their information
+              memset(&nexthopaddr, 0, sizeof(nexthopaddr));
+              nexthopaddr.sin_family = AF_INET;
+              nexthopaddr.sin_port = records.next_hop;
+              nexthopaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+                
+              if (sendto(routersocket, buffer, len, 0,(struct sockaddr *)&nexthopaddr, addrlen)==-1){
+                perror("sendto in tunnel.c\n");
+                exit(1);
+              }  
+            }
+          }          
+          if (type == 0x54){
+            char ipbuffer[len-sizeof(struct iphdr)-3];
+            memcpy(ipbuffer, buffer+sizeof(struct iphdr)+3, len-sizeof(struct iphdr)-3);
+            struct iphdr *ip = (struct iphdr*)ipbuffer;
+
+            struct in_addr src, dst;
+            src.s_addr = ip->saddr;
+            dst.s_addr = ip->daddr;
+
+            FILE *output = fopen(filename, "a");
+            fprintf(output, "pkt from port: %d, length: %d, contents: 0x", ntohs(theiraddr.sin_port), ntohs(ip->tot_len)+3);
+            for(int i = sizeof(struct iphdr); i<len; i++)
+                  fprintf(output,"%02x",((unsigned char*)buffer)[i]);
+            fprintf(output,"\nrelay reply packet, circuit incoming: %x, outgoing: %x, incoming src:%s, outgoing src: %s, dst: %s\n", records.oCircuit_ID, records.iCircuit_ID, inet_ntoa(src), router_ip, inet_ntoa(dst));
+            fclose(output);
+
+            // Their information
+            memset(&nexthopaddr, 0, sizeof(nexthopaddr));
+            nexthopaddr.sin_family = AF_INET;
+            nexthopaddr.sin_port = records.prev_hop;
+            nexthopaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+              
+            if (sendto(routersocket, buffer, len, 0,(struct sockaddr *)&nexthopaddr, addrlen)==-1){
+              perror("sendto in tunnel.c\n");
+              exit(1);
+            }  
           }
 
           for ( int i = 0; i < len; i++ )

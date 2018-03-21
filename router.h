@@ -20,6 +20,8 @@ int PROXY_PORT_NUM;
 
 /*
  * Starter function thats creates relevant sockets and starts the select loop.
+ * Contains two separate select loops, one for stages 1 to 4, and the other
+ * for stages 5 and 6.
  */
 void run_router(int cur_router, char* interface, char *ip);
 
