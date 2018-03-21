@@ -343,7 +343,7 @@ int tunnel_reader2(char *filename, int proxysocket, struct sockaddr_in routeradd
           fprintf(output, "pkt from port: %d, length: %d, contents: 0x", ntohs(theiraddr.sin_port), ntohs(ip->tot_len)+3);
           for(int i = sizeof(struct iphdr); i<len; i++)
                 fprintf(output,"%02x",((unsigned char*)buffer)[i]);
-          fprintf(output,"\nincoming packet, circuit incoming: 0x01, src:%s,dst:%u.%u.%u.%u\n", inet_ntoa(src), ip->daddr &0xff, ip->daddr>>8 &0xff, ip->daddr>>16 &0xff,ip->daddr >> 24 &0xff);
+          fprintf(output,"\nincoming packet, circuit incoming: 0x01, src:%u.%u.%u.%u, dst:%u.%u.%u.%u\n", ip->saddr &0xff, ip->saddr>>8 &0xff, ip->saddr>>16 &0xff,ip->saddr>>24 &0xff, ip->daddr &0xff, ip->daddr>>8 &0xff, ip->daddr>>16 &0xff,ip->daddr >> 24 &0xff);
           fclose(output);
           
         }

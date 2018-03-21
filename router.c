@@ -459,15 +459,11 @@ void run_router(int cur_router, char* interface, char* router_ip){
             memcpy(ipbuffer, buffer+sizeof(struct iphdr)+3, len-sizeof(struct iphdr)-3);
             struct iphdr *ip = (struct iphdr*)ipbuffer;
 
-            struct in_addr src, dst;
-            src.s_addr = ip->saddr;
-            dst.s_addr = ip->daddr;
-
             FILE *output = fopen(filename, "a");
             fprintf(output, "pkt from port: %d, length: %d, contents: 0x", ntohs(theiraddr.sin_port), ntohs(ip->tot_len)+3);
             for(int i = sizeof(struct iphdr); i<len; i++)
                   fprintf(output,"%02x",((unsigned char*)buffer)[i]);
-            fprintf(output,"\nrelay packet, circuit incoming: 0x%x, outgoing: 0x%x, incoming src:%s, outgoing src: %s, dst: %s\n", records.iCircuit_ID, records.oCircuit_ID, inet_ntoa(src), router_ip, inet_ntoa(dst));
+            fprintf(output,"\nrelay packet, circuit incoming: 0x%x, outgoing: 0x%x, incoming src:%u.%u.%u.%u, outgoing src: %s, dst: %u.%u.%u.%u\n", records.iCircuit_ID, records.oCircuit_ID, ip->saddr &0xff, ip->saddr>>8 &0xff, ip->saddr>>16 &0xff,ip->saddr>>24 &0xff, router_ip, ip->daddr &0xff, ip->daddr>>8 &0xff, ip->daddr>>16 &0xff,ip->daddr >> 24 &0xff);
             fclose(output);
 
             if(records.next_hop == 0xFFFF){
@@ -518,16 +514,13 @@ void run_router(int cur_router, char* interface, char* router_ip){
             memcpy(ipbuffer, buffer+sizeof(struct iphdr)+3, len-sizeof(struct iphdr)-3);
             struct iphdr *ip = (struct iphdr*)ipbuffer;
 
-            struct in_addr src, dst;
-            src.s_addr = ip->saddr;
-            dst.s_addr = ip->daddr;
-
             FILE *output = fopen(filename, "a");
             fprintf(output, "pkt from port: %d, length: %d, contents: 0x", ntohs(theiraddr.sin_port), ntohs(ip->tot_len)+3);
             for(int i = sizeof(struct iphdr); i<len; i++)
                   fprintf(output,"%02x",((unsigned char*)buffer)[i]);
-            fprintf(output,"\nrelay reply packet, circuit incoming: %x, outgoing: %x, incoming src:%s, outgoing src: %s, dst: %s\n", records.oCircuit_ID, records.iCircuit_ID, inet_ntoa(src), router_ip, inet_ntoa(dst));
+            fprintf(output,"\nrelay reply packet, circuit incoming: %x, outgoing: %x, incoming src:%u.%u.%u.%u, outgoing src: %s, dst: %u.%u.%u.%u\n", records.oCircuit_ID, records.iCircuit_ID, ip->saddr &0xff, ip->saddr>>8 &0xff, ip->saddr>>16 &0xff,ip->saddr>>24 &0xff, router_ip, ip->daddr &0xff, ip->daddr>>8 &0xff, ip->daddr>>16 &0xff,ip->daddr >> 24 &0xff);
             fclose(output);
+
 
             // Their information
             memset(&nexthopaddr, 0, sizeof(nexthopaddr));
@@ -551,6 +544,39 @@ void run_router(int cur_router, char* interface, char* router_ip){
       }
       if FD_ISSET(raw_socket, &tempset){
         bzero(buffer, BUFSIZE);
+        int len=recvfrom(raw_socket,buffer,BUFSIZE,0,(struct sockaddr *)&theiraddr,&addrlen);
+        if (len > 0){
+          buffer[len] = 0;
+          struct iphdr *ip = (struct iphdr*)buffer;
+  
+          output = fopen(filename, "a");
+          fprintf(output,"incoming packet, src:%u.%u.%u.%u, dst:%u.%u.%u.%u, outgoing circuit: 0x%x\n",ip->saddr &0xff, ip->saddr>>8 &0xff, ip->saddr>>16 &0xff,ip->saddr>>24 &0xff, ip->daddr &0xff, ip->daddr>>8 &0xff, ip->daddr>>16 &0xff,ip->daddr >> 24 &0xff, records.iCircuit_ID);
+          fclose(output);
+
+          uint8_t tosend[3];
+          tosend[0] = 0x54;
+          tosend[1] = records.iCircuit_ID&0xff00;
+          tosend[2] = 0x01;
+          
+          char datagram[sizeof(struct iphdr)+sizeof(tosend)+ntohs(ip->tot_len)];
+          struct iphdr *mant_ip = (struct iphdr*)datagram;
+          mant_ip->saddr = inet_addr("127.0.0.1");
+          mant_ip->daddr = inet_addr("127.0.0.1");
+          mant_ip->protocol = 253;
+          memcpy(datagram+sizeof(struct iphdr), (unsigned char*)tosend, sizeof(tosend));
+          memcpy(datagram+sizeof(struct iphdr)+sizeof(tosend), buffer, ntohs(ip->tot_len));
+
+          // Their information
+          memset(&nexthopaddr, 0, sizeof(nexthopaddr));
+          nexthopaddr.sin_family = AF_INET;
+          nexthopaddr.sin_port = records.prev_hop;
+          nexthopaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+            
+          if (sendto(routersocket, datagram, sizeof(datagram), 0,(struct sockaddr *)&nexthopaddr, addrlen)==-1){
+            perror("sendto in tunnel.c\n");
+            exit(1);
+          }  
+        }
       }
     } while(1);
   }
