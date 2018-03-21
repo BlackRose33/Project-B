@@ -509,13 +509,6 @@ void run_router(int cur_router, char* interface, char* router_ip){
               exit(1);
             }  
           }
-
-          for ( int i = 0; i < len; i++ )
-          {
-            if ( !(i & 15) ) fprintf(stderr, "\n%X:  ", i);
-            fprintf(stderr, "%X ", ((unsigned char*)buffer)[i]);
-          }
-          fprintf(stderr,"\n");
         }
       }
       if FD_ISSET(raw_socket, &tempset){
@@ -531,7 +524,7 @@ void run_router(int cur_router, char* interface, char* router_ip){
 
           uint8_t tosend[3];
           tosend[0] = 0x54;
-          tosend[1] = records.iCircuit_ID&0xff00;
+          tosend[1] = records.iCircuit_ID>>8;
           tosend[2] = 0x01;
           
           char datagram[sizeof(struct iphdr)+sizeof(tosend)+ntohs(ip->tot_len)];
