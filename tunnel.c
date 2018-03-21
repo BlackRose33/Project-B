@@ -230,7 +230,7 @@ int tunnel_reader2(char *filename, int proxysocket, struct sockaddr_in routeradd
             cur_hop += 1;
             router_num[cur_hop] = cur_router;
           }
-          cur_hop = 0;
+          cur_hop = 1;
           fclose(output);
 
           //send first circuit extend control message
@@ -241,8 +241,13 @@ int tunnel_reader2(char *filename, int proxysocket, struct sockaddr_in routeradd
       	  tosend[0] = 0x52;
       	  tosend[1] = (id>>8)&0x00FF;
       	  tosend[2] = (id)&0x00FF;
-      	  tosend[3] = routeraddr[router_num[cur_hop]-1].sin_port >> 8; 
-      	  tosend[4] = routeraddr[router_num[cur_hop]-1].sin_port & 0xFF; 
+          if (cur_hop < MINITOR_HOPS){
+        	  tosend[3] = routeraddr[router_num[cur_hop]-1].sin_port >> 8; 
+        	  tosend[4] = routeraddr[router_num[cur_hop]-1].sin_port & 0xFF; 
+          } else {
+            tosend[3] = 0xFF;
+            tosend[4] = 0xFF;
+          }
        
           char datagram[sizeof(struct iphdr)+sizeof(tosend)];
           bzero(datagram, sizeof(datagram));
@@ -252,7 +257,7 @@ int tunnel_reader2(char *filename, int proxysocket, struct sockaddr_in routeradd
           mant_ip->protocol = 253;
           memcpy(datagram+sizeof(struct iphdr), (unsigned char*)tosend, sizeof(tosend));
 
-          if (sendto(proxysocket, datagram, sizeof(datagram),0,(struct sockaddr *)&routeraddr[router_num[cur_hop]-1], addrlen)==-1){
+          if (sendto(proxysocket, datagram, sizeof(datagram),0,(struct sockaddr *)&routeraddr[router_num[cur_hop-1]-1], addrlen)==-1){
             perror("sendto in tunnel.c\n");
             exit(1);
           }       
@@ -260,25 +265,60 @@ int tunnel_reader2(char *filename, int proxysocket, struct sockaddr_in routeradd
       }
     }
     if FD_ISSET(proxysocket, &tempset){
-      // struct sockaddr_in theiraddr;
-      // int len = recvfrom(proxysocket, buffer,1000, 0, (struct sockaddr *)&theiraddr,&addrlen);
-      // if (len > 0){
-      //   buffer[len] = 0;
-      //   struct iphdr *ip = (struct iphdr*)buffer;
+      struct sockaddr_in theiraddr;
+      int len = recvfrom(proxysocket, buffer,1000, 0, (struct sockaddr *)&theiraddr,&addrlen);
+      if (len > 0){
+        buffer[len] = '\0';
+        uint8_t type = buffer[sizeof(struct iphdr)];
+
+        //extend circuit complete
+        if (type == 0x53){
+          FILE *output = fopen(filename, "a");
+          fprintf(output, "pkt from port: %d, length: 3, contents: 0x530001\n
+            incoming extend-done circuit, incoming: 0x1 from port: %d\n", ntohs(theiraddr.sin_port), ntohs(theiraddr.sin_port));
+          fclose(output);
+
+          //sending extend circuit 
+          if (cur_hop<MINITOR_HOPS){
+            cur_hop += 1;
+            uint16_t id = (0*256) + sequence_num;
+            uint8_t tosend[5];
+            tosend[0] = 0x52;
+            tosend[1] = (id>>8)&0x00FF;
+            tosend[2] = (id)&0x00FF;
+            if (cur_hop < MINITOR_HOPS){
+              tosend[3] = routeraddr[router_num[cur_hop]-1].sin_port >> 8; 
+              tosend[4] = routeraddr[router_num[cur_hop]-1].sin_port & 0xFF; 
+            } else {
+              tosend[3] = 0xFF;
+              tosend[4] = 0xFF;
+            }
+
+            char datagram[sizeof(struct iphdr)+sizeof(tosend)];
+            bzero(datagram, sizeof(datagram));
+            struct iphdr *mant_ip = (struct iphdr*)datagram;
+            mant_ip->saddr = inet_addr("127.0.0.1");
+            mant_ip->daddr = inet_addr("127.0.0.1");
+            mant_ip->protocol = 253;
+            memcpy(datagram+sizeof(struct iphdr), (unsigned char*)tosend, sizeof(tosend));
+
+            if (sendto(proxysocket, datagram, sizeof(datagram),0,(struct sockaddr *)&routeraddr[router_num[cur_hop-1]-1], addrlen)==-1){
+              perror("sendto in tunnel.c\n");
+              exit(1);
+            }  
+          } else { //circuit built send relay now
+            struct iphdr *ip = (struct iphdr*)store_packet_while_creating_circuit;
         
-      //   int size = ntohs(ip->tot_len) - sizeof(struct iphdr); 
-      //   char buffer1[size+1];
-      //   memcpy(buffer1, buffer+sizeof(struct iphdr), size);
-      //   struct icmphdr *icmp = (struct icmphdr*) buffer1;
-
-      //   FILE *output = fopen(filename, "a");
-      //   fprintf(output,"ICMP from port:%d, src:%u.%u.%u.%u, dst:%u.%u.%u.%u, type:%d\n",ntohs(theiraddr.sin_port), ip->saddr &0xff, ip->saddr>>8 &0xff, ip->saddr>>16 &0xff,ip->saddr>>24 &0xff, ip->daddr &0xff, ip->daddr>>8 &0xff, ip->daddr>>16 &0xff,ip->daddr >> 24 &0xff, icmp->type);
-      //   fclose(output);
-
-      //   if(write(tun_fd, buffer, sizeof(struct iphdr)+sizeof(struct icmphdr))<0){
-      //     perror("write failed");
-      //   }
-      // }
+            int size = ntohs(ip->tot_len) - sizeof(struct iphdr); 
+            char buffer1[size];
+            memcpy(buffer1, store_packet_while_creating_circuit+sizeof(struct iphdr), size);
+            struct icmphdr *icmp = (struct icmphdr*) buffer1;
+            FILE *output = fopen(filename, "a");
+            fprintf(output, "ICMP from tunnel, src:%u.%u.%u.%u, dst:%u.%u.%u.%u, type:%d\n", ip->saddr &0xff, ip->saddr>>8 &0xff, ip->saddr>>16 &0xff,ip->saddr>>24 &0xff, ip->daddr &0xff, ip->daddr>>8 &0xff, ip->daddr>>16 &0xff,ip->daddr >> 24 &0xff, icmp->type);
+            fclose(output);
+          }
+        }
+      }
     }
   }while(1);
 }

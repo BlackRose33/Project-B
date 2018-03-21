@@ -7,10 +7,13 @@ int router_port_num;
 int raw_socket_port_num;
 
 struct record{
+  uint16_t prev_hop;
   uint16_t iCircuit_ID;
   uint16_t oCircuit_ID;
   uint16_t next_hop;
 };
+
+int set = 0;
 
 // Computing the internet checksum (RFC 1071).
 // Note that the internet checksum does not preclude collisions.
@@ -145,7 +148,7 @@ int create_udp_socket(char* ip){
 }
 
 void run_router(int cur_router, char* interface, char* router_ip){
-  struct sockaddr_in proxyaddr, theiraddr;
+  struct sockaddr_in proxyaddr, theiraddr, nexthopaddr;
   int routersocket, raw_socket;
   char buffer[BUFSIZE];
   socklen_t addrlen = sizeof(struct sockaddr_in);
@@ -346,30 +349,93 @@ void run_router(int cur_router, char* interface, char* router_ip){
           buffer[len] = '\0';
           uint8_t type = buffer[sizeof(struct iphdr)];
 
-	  fprintf(stderr, "%d\n", type);
           if (type == 0x52){
-            records.iCircuit_ID = buffer[sizeof(struct iphdr)+1];
-            records.iCircuit_ID = records.iCircuit_ID << 8;
-            records.iCircuit_ID |= buffer[sizeof(struct iphdr)+2];
+            if (set == 0){
+              set = 1;
+              //Register received info
+              records.prev_hop = theiraddr.sin_port;
 
-            records.oCircuit_ID = (cur_router & 0x00FF)<<8;
-            records.oCircuit_ID |= 0x01;
+              records.iCircuit_ID = buffer[sizeof(struct iphdr)+1];
+              records.iCircuit_ID = records.iCircuit_ID << 8;
+              records.iCircuit_ID |= buffer[sizeof(struct iphdr)+2];
 
-            records.next_hop = buffer[sizeof(struct iphdr)+3];
-            records.next_hop = records.next_hop << 8;
-            records.next_hop |= buffer[sizeof(struct iphdr)+4];
+              records.oCircuit_ID = (cur_router & 0xFFFF)<<8;
+              records.oCircuit_ID |= 0x01;
 
-            output = fopen(filename, "a");
-            fprintf(output,"pkt from port: %d, length: 5, contents: 0x",ntohs(theiraddr.sin_port));
-            for(int i = sizeof(struct iphdr); i<len; i++)
-              fprintf(output,"%02x",((unsigned char*)buffer)[i]);
-            fclose(output);
+              records.next_hop = buffer[sizeof(struct iphdr)+3];
+              records.next_hop = records.next_hop << 8;
+              records.next_hop |= buffer[sizeof(struct iphdr)+4];
+
+              output = fopen(filename, "a");
+              fprintf(output,"pkt from port: %d, length: 5, contents: 0x",ntohs(theiraddr.sin_port));
+              for(int i = sizeof(struct iphdr); i<len; i++)
+                fprintf(output,"%02x",((unsigned char*)buffer)[i]);
+              fclose(output);
+              fprintf(output,"new extend circuit: incoming: 0x%x, outgoing: 0x%x at %d",records.iCircuit_ID, records.oCircuit_ID, ntohs(records.next_hop));
+
+              //Prepare extend done packet to forward
+              uint8_t tosend[3];
+
+              tosend[0] = 0x53;
+              tosend[1] = buffer[sizeof(struct iphdr)+1];
+              tosend[2] = buffer[sizeof(struct iphdr)+2];
+           
+              char datagram[sizeof(struct iphdr)+sizeof(tosend)];
+              bzero(datagram, sizeof(datagram));
+              struct iphdr *mant_ip = (struct iphdr*)datagram;
+              mant_ip->saddr = inet_addr("127.0.0.1");
+              mant_ip->daddr = inet_addr("127.0.0.1");
+              mant_ip->protocol = 253;
+              memcpy(datagram+sizeof(struct iphdr), (unsigned char*)tosend, sizeof(tosend));
+
+              if (sendto(routersocket, datagram, sizeof(datagram),0,(struct sockaddr *)&theiraddr, addrlen)==-1){
+                perror("sendto in router.c 0x52 1\n");
+                exit(1);
+              } 
+            } else {
+              buffer[sizeof(struct iphdr)+1] = cur_router & 0xFF;
+              buffer[sizeof(struct iphdr)+2] = 0x01;
+
+              fprintf(output,"pkt from port: %d, length: 5, contents: 0x",ntohs(theiraddr.sin_port));
+              for(int i = sizeof(struct iphdr); i<len; i++)
+                fprintf(output,"%02x",((unsigned char*)buffer)[i]);
+              fprintf(output,"forwarding extend circuit: incoming: 0x%x, outgoing: 0x%x at %d",records.iCircuit_ID, records.oCircuit_ID, ntohs(records.next_hop));
+              fclose(output);
+
+              // Their information
+              memset(&nexthopaddr, 0, sizeof(nexthopaddr));
+              nexthopaddr.sin_family = AF_INET;
+              nexthopaddr.sin_port = records.next_hop;
+              if (inet_aton("127.0.0.1", &nexthopaddr.sin_addr)==0) {
+                perror("inet_aton() failed");
+                exit(1);
+              } 
+              if (sendto(routersocket, buffer, sizeof(buffer),0,(struct sockaddr *)&nexthopaddr, addrlen)==-1){
+                perror("sendto in router.c 0x52 2\n");
+                exit(1);
+              } 
+
+            }
           }
           if (type == 0x51){
 
           }
           if (type == 0x53){
+            FILE *output = fopen(filename, "a");
+            fprintf(output, "pkt from port: %d, length: 3, contents: 0x", ntohs(theiraddr.sin_port));
+            for(int i = sizeof(struct iphdr); i<len; i++)
+              fprintf(output,"%02x",((unsigned char*)buffer)[i]);
+            fprintf(output, "\nforwarding extend-done circuit, incoming: 0x%x, outgoing: 0x%x at %d\n", records.oCircuit_ID, records.iCircuit_ID, ntohs(records.prev_hop));
+            fclose(output);
 
+            //sending extend circuit 
+            buffer[sizeof(struct iphdr)+1] = (records.iCircuit_ID>>8)&0x00FF ;
+            buffer[sizeof(struct iphdr)+2] = (records.iCircuit_ID)&0x00FF; 
+
+            if (sendto(proxysocket, datagram, sizeof(datagram),0,(struct sockaddr *)&routeraddr[router_num[cur_hop-1]-1], addrlen)==-1){
+              perror("sendto in tunnel.c\n");
+              exit(1);
+            }  
           }
           if (type == 0x54){
 
