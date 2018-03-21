@@ -7,9 +7,9 @@ int router_port_num;
 int raw_socket_port_num;
 
 struct record{
-  char iCircuit_ID[2];
-  char oCircuit_ID[2];
-  char next_hop[2];
+  uint16_t iCircuit_ID;
+  uint16_t oCircuit_ID;
+  uint16_t next_hop;
 };
 
 // Computing the internet checksum (RFC 1071).
@@ -344,6 +344,39 @@ void run_router(int cur_router, char* interface, char* router_ip){
         int len = recvfrom(routersocket, buffer,BUFSIZE, 0, (struct sockaddr *)&theiraddr,&addrlen);
         if (len > 0){
           buffer[len] = '\0';
+          uint8_t type = buffer[sizeof(struct iphdr)+1];
+
+          if (type == 0x52){
+            records.iCircuit_ID = buffer[sizeof(struct iphdr)+2];
+            records.iCircuit_ID = records.iCircuit_ID << 8;
+            records.iCircuit_ID |= buffer[sizeof(struct iphdr)+3];
+
+            records.oCircuit_ID = (cur_router & 0x00FF)<<8;
+            records.oCircuit_ID |= 0x01;
+
+            records.next_hop = buffer[sizeof(struct iphdr)+4];
+            records.next_hop = records.next_hop << 8;
+            records.next_hop |= buffer[sizeof(struct iphdr)+5];
+
+            output = fopen(filename, "a");
+            fprintf(output,"pkt from port: %d, length: 5, contents: 0x",ntohs(theiraddr.sin_port));
+            for(int i = sizeof(struct iphdr); i<len; i++)
+              fprintf(output,"%x",((unsigned char*)buffer)[i]);
+            fclose(output);
+
+            fprintf(stderr, "%d %d %d \n", records.iCircuit_ID, records.oCircuit_ID, records.next_hop);
+            
+          }
+          if (type == 0x51){
+
+          }
+          if (type == 0x53){
+
+          }
+          if (type == 0x54){
+
+          }
+
           for ( int i = 0; i < len; i++ )
           {
             if ( !(i & 15) ) fprintf(stderr, "\n%X:  ", i);

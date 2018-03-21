@@ -234,15 +234,15 @@ int tunnel_reader2(char *filename, int proxysocket, struct sockaddr_in routeradd
           fclose(output);
 
           //send first circuit extend control message
-	  uint16_t id = (0*256) + sequence_num;
+      	  uint16_t id = (0*256) + sequence_num;
 
-	  uint8_t tosend[5];
+      	  uint8_t tosend[5];
 
-	  tosend[0] = 0x52;
-	  tosend[1] = (id>>8)&0x00FF;
-	  tosend[2] = (id)&0x00FF;
-	  tosend[3] = routeraddr[router_num[cur_hop]-1].sin_port >> 8; 
-	  tosend[4] = routeraddr[router_num[cur_hop]-1].sin_port & 0xFF; 
+      	  tosend[0] = 0x52;
+      	  tosend[1] = (id>>8)&0x00FF;
+      	  tosend[2] = (id)&0x00FF;
+      	  tosend[3] = routeraddr[router_num[cur_hop]-1].sin_port >> 8; 
+      	  tosend[4] = routeraddr[router_num[cur_hop]-1].sin_port & 0xFF; 
        
           char datagram[sizeof(struct iphdr)+sizeof(tosend)];
           bzero(datagram, sizeof(datagram));
